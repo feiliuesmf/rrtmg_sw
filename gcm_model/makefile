@@ -52,6 +52,7 @@ install: $(LIBRARY)
 	@echo "ESMF_DEP_CMPL_OBJS = " >> rrtmg_sw.mk.install
 	@echo "ESMF_DEP_LINK_OBJS = $(INSTALLDIR)/librrtmg_sw.a " >> rrtmg_sw.mk.install
 	mkdir -p $(INSTALLDIR)
+	mv *.mod $(INSTALLDIR) 
 	cp -f librrtmg_sw.a mod/*.mod $(INSTALLDIR) 
 	cp -f rrtmg_sw.mk.install $(INSTALLDIR)/rrtmg_sw.mk
 
