@@ -1,0 +1,11 @@
+# Build requirements
+source /etc/profile
+module load intel impi netcdf 
+setenv ESMFMKFILE ESMFMKFILE
+
+# Build and install
+gmake install
+
+# Build and Run this cap with ComponentExplorer
+./nuopcExplorerScript ~/noscrub/RRTMG/rrtmg_sw_v4.02/gcm_model/install/rrtmg_sw.mk
+mpirun -np # ./nuopcExplorerApp
