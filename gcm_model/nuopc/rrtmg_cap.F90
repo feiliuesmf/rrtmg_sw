@@ -274,7 +274,7 @@ module rrtmg_sw_cap_mod
     allocate(ecaer(ncol, nlay, nbndsw))
 
     allocate(swuflx(ncol, nlay+1))
-    allocate(swuflx(ncol, nlay+1))
+    allocate(swdflx(ncol, nlay+1))
     allocate(swhr(ncol, nlay))
     allocate(swuflxc(ncol, nlay+1))
     allocate(swdflxc(ncol, nlay+1))
@@ -550,7 +550,7 @@ module rrtmg_sw_cap_mod
     !                                                  !    If scon > 0.0, the internal solar
     !                                                  !    constant will be scaled to the 
     !                                                  !    provided value of scon.
-    scon = 1360.85
+    scon = 0.0
 
     !  integer(kind=im), intent(in) :: isolvar         ! Flag for solar variability method
     !                                                  !   -1 = (when scon .eq. 0.0): No solar variability
@@ -590,7 +590,7 @@ module rrtmg_sw_cap_mod
     !                                                  !        scaled to scon and solar variability defined
     !                                                  !        (optional) by setting non-zero scale factors
     !                                                  !        for each band in bndsolvar
-    isolvar = -1
+    isolvar = 0
 
     !  real(kind=rb), intent(in), optional :: indsolvar(:) ! Facular and sunspot amplitude 
     !                                                      ! scale factors (isolvar=1), or
@@ -732,7 +732,7 @@ module rrtmg_sw_cap_mod
     deallocate(play)
     deallocate(plev)
     deallocate(tlay)
-    deallocate(tlay)
+    deallocate(tlev)
     deallocate(tsfc)
     deallocate(h2ovmr)
     deallocate(o3vmr)
@@ -760,7 +760,7 @@ module rrtmg_sw_cap_mod
     deallocate(ecaer)
 
     deallocate(swuflx)
-    deallocate(swuflx)
+    deallocate(swdflx)
     deallocate(swhr)
     deallocate(swuflxc)
     deallocate(swdflxc)

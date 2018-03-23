@@ -5,6 +5,7 @@
 
 INSTALLDIR=/scratch4/NCEPDEV/ocean/noscrub/Fei.Liu/RRTMG/rrtmg_sw_v4.02/gcm_model/install
 MACHINE=theia
+BUILD=debug
 
 ifneq ($(origin ESMFMKFILE), environment)
 $(error Environment variable ESMFMKFILE was not set.)
@@ -15,7 +16,16 @@ ESMF_LIB        = $(ESMF_F90LINKPATHS) $(ESMF_F90LINKRPATHS) $(ESMF_F90ESMFLINKL
 
 VERSION=4.0.2
 FC=mpiifort
-FCFLAGS=-O2 -g -real-size 64 -integer-size 64 -fPIC $(ESMF_INC)
+MODULES_DIR=modules
+SRC_DIR=src
+OBJ_DIR=obj
+MOD_DIR=mod
+
+ifeq ($(BUILD),debug)
+	FCFLAGS=-O0 -g -traceback -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
+else
+	FCFLAGS=-O2 -g -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
+endif
 LINKFLAGS=-shared
 AR=ar
 ARFLAGS=-r
@@ -26,9 +36,6 @@ INCLUDE=-I. -Imod -I$(NETCDF)/include
 LIB=-L$(NETCDF)/lib -lnetcdf
 LIBRARY=librrtmg_sw.a
 
-MODULES_DIR=modules
-SRC_DIR=src
-OBJ_DIR=obj
 
 TARGET_OBJ=$(OBJ_DIR)/parrrsw.o	 $(OBJ_DIR)/rrsw_kg16.o	$(OBJ_DIR)/rrsw_kg20.o  $(OBJ_DIR)/rrsw_kg24.o  $(OBJ_DIR)/rrsw_kg28.o   $(OBJ_DIR)/rrsw_tbl.o $(OBJ_DIR)/rrsw_aer.o  $(OBJ_DIR)/rrsw_kg17.o	$(OBJ_DIR)/rrsw_kg21.o  $(OBJ_DIR)/rrsw_kg25.o  $(OBJ_DIR)/rrsw_kg29.o   $(OBJ_DIR)/rrsw_vsn.o $(OBJ_DIR)/rrsw_cld.o  $(OBJ_DIR)/rrsw_kg18.o	$(OBJ_DIR)/rrsw_kg22.o  $(OBJ_DIR)/rrsw_kg26.o  $(OBJ_DIR)/rrsw_ncpar.o  $(OBJ_DIR)/rrsw_wvn.o $(OBJ_DIR)/parkind.o		   $(OBJ_DIR)/rrsw_con.o  $(OBJ_DIR)/rrsw_kg19.o	$(OBJ_DIR)/rrsw_kg23.o  $(OBJ_DIR)/rrsw_kg27.o  $(OBJ_DIR)/rrsw_ref.o $(OBJ_DIR)/rrtmg_sw_cldprmc.o	$(OBJ_DIR)/rrtmg_sw_k_g.o	  	$(OBJ_DIR)/rrtmg_sw_spcvmc.o  $(OBJ_DIR)/rrtmg_sw_vrtqdr.o $(OBJ_DIR)/mcica_random_numbers.o  $(OBJ_DIR)/rrtmg_sw_cldprop.o	$(OBJ_DIR)/rrtmg_sw_rad.o	  $(OBJ_DIR)/rrtmg_sw_reftra.o	$(OBJ_DIR)/rrtmg_sw_spcvrt.o $(OBJ_DIR)/mcica_subcol_gen_sw.o   $(OBJ_DIR)/rrtmg_sw_init.o	  $(OBJ_DIR)/rrtmg_sw_setcoef.o	$(OBJ_DIR)/rrtmg_sw_taumol.o $(OBJ_DIR)/rrtmg_cap.o
 
@@ -52,9 +59,8 @@ install: $(LIBRARY)
 	@echo "ESMF_DEP_CMPL_OBJS = " >> rrtmg_sw.mk.install
 	@echo "ESMF_DEP_LINK_OBJS = $(INSTALLDIR)/librrtmg_sw.a " >> rrtmg_sw.mk.install
 	mkdir -p $(INSTALLDIR)
-	mv *.mod $(INSTALLDIR) 
-	cp -f librrtmg_sw.a mod/*.mod $(INSTALLDIR) 
-	cp -f rrtmg_sw.mk.install $(INSTALLDIR)/rrtmg_sw.mk
+	-cp -f librrtmg_sw.a mod/*.mod $(INSTALLDIR) 
+	-cp -f rrtmg_sw.mk.install $(INSTALLDIR)/rrtmg_sw.mk
 
 clean:
 	rm -rf *.o *.so *.mod obj/*.o mod/*.mod
@@ -143,5 +149,5 @@ $(OBJ_DIR)/rrtmg_sw_taumol.o : $(SRC_DIR)/rrtmg_sw_taumol.f90
 $(OBJ_DIR)/rrtmg_sw_vrtqdr.o : $(SRC_DIR)/rrtmg_sw_vrtqdr.f90 
 	$(FC) $(FCFLAGS) $(INCLUDE) -o $@ -c $<
 obj/rrtmg_cap.o : nuopc/rrtmg_cap.F90 
-	$(FC) $(INCLUDE) $(ESMF_F90COMPILEOPTS) $(UTILINCS) $(ESMF_F90COMPILEPATHS) $(ESMF_F90COMPILEFREECPP) $(ESMF_F90COMPILECPPFLAGS) -o $@ -c $<
+	$(FC) $(INCLUDE) $(ESMF_F90COMPILEOPTS) $(ESMF_F90COMPILEPATHS) $(ESMF_F90COMPILEFREECPP) $(ESMF_F90COMPILECPPFLAGS) -mod $(MOD_DIR) -o $@ -c $<
 
