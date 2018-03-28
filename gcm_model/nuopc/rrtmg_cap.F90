@@ -16,7 +16,6 @@ module rrtmg_sw_cap_mod
   use NUOPC
   use NUOPC_Model, &
     model_routine_SS      => SetServices, &
-    model_label_SetClock  => label_SetClock, &
     model_label_CheckImport  => label_CheckImport, &
     model_label_Advance   => label_Advance, &
     model_label_Finalize  => label_Finalize
@@ -154,14 +153,6 @@ module rrtmg_sw_cap_mod
       return  ! bail out
 
     ! attach specializing method(s)
-    ! No need to change clock settings
-!    call ESMF_MethodAdd(gcomp, label=model_label_SetClock, &
-!      userRoutine=SetClock, rc=rc)
-!    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-!      line=__LINE__, &
-!      file=__FILE__)) &
-!      return  ! bail out
-    
     call ESMF_MethodAdd(gcomp, label=model_label_Advance, &
       userRoutine=ModelAdvance, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -189,7 +180,7 @@ module rrtmg_sw_cap_mod
       return  ! bail out
 
 
-    call RRTMG_FieldsSetup()
+    !call RRTMG_FieldsSetup()
 
   end subroutine
 
@@ -329,63 +320,9 @@ module rrtmg_sw_cap_mod
       file=__FILE__)) &
       return  ! bail out
 
-    call state_reset(ExportState, value=-99._ESMF_KIND_R8, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-
     write(info,*) subname,' --- initialization phase 2 completed --- '
     call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, line=__LINE__, file=__FILE__, rc=dbrc)
 
-  end subroutine
-  
-  !-----------------------------------------------------------------------------
-
-  ! RRTMG model uses same clock as parent gridComp
-  subroutine SetClock(gcomp, rc)
-    type(ESMF_GridComp)  :: gcomp
-    integer, intent(out) :: rc
-    
-    ! local variables
-    type(ESMF_Clock)              :: clock
-    type(ESMF_TimeInterval)       :: stabilityTimeStep, timestep
-    character(len=*),parameter  :: subname='(rrtmg_cap:SetClock)'
-
-    rc = ESMF_SUCCESS
-    
-    ! query the Component for its clock, importState and exportState
-    call ESMF_GridCompGet(gcomp, clock=clock, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-
-    call ESMF_TimeIntervalSet(timestep, s=900, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-
-    call ESMF_ClockSet(clock, timestep=timestep, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-      
-    ! initialize internal clock
-    ! here: parent Clock and stability timeStep determine actual model timeStep
-    call ESMF_TimeIntervalSet(stabilityTimeStep, s=900, rc=rc) 
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-    call NUOPC_CompSetClock(gcomp, clock, stabilityTimeStep, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-    
   end subroutine
 
   !-----------------------------------------------------------------------------
@@ -410,7 +347,6 @@ module rrtmg_sw_cap_mod
     import_slice = import_slice + 1
     export_slice = export_slice + 1
 
-    write(info,*) subname,' --- run phase 4 called --- ',rc
     call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
     !  integer(kind=im), intent(inout) :: icld         ! Cloud overlap method
     !                                                  !    0: Clear only
@@ -711,6 +647,9 @@ module rrtmg_sw_cap_mod
              swuflx  ,swdflx  ,swhr    ,swuflxc ,swdflxc ,swhrc, &
 ! optional I/O
              bndsolvar,indsolvar,solcycfrac)
+
+    write(info,*) subname,' --- run phase 1 completed --- '
+
   end subroutine 
 
   subroutine rrtmg_model_finalize(gcomp, rc)
@@ -758,6 +697,13 @@ module rrtmg_sw_cap_mod
     deallocate(ssaaer)
     deallocate(asmaer)
     deallocate(ecaer)
+
+    write(*,*) swuflx
+    write(*,*) swdflx
+    write(*,*) swhr
+    write(*,*) swuflx
+    write(*,*) swdflx
+    write(*,*) swhrc
 
     deallocate(swuflx)
     deallocate(swdflx)
@@ -897,220 +843,6 @@ module rrtmg_sw_cap_mod
   end subroutine RRTMG_RealizeFields
 
   !-----------------------------------------------------------------------------
-
-  subroutine state_diagnose(State, string, rc)
-    ! ----------------------------------------------
-    ! Diagnose status of state
-    ! ----------------------------------------------
-    type(ESMF_State), intent(inout) :: State
-    character(len=*), intent(in), optional :: string
-    integer, intent(out), optional  :: rc
-
-    ! local variables
-    integer                     :: i,j,n
-    integer                     :: fieldCount
-    character(len=64) ,pointer  :: fieldNameList(:)
-    character(len=64)           :: lstring
-    real(ESMF_KIND_R8), pointer :: dataPtr(:,:,:)
-    integer                     :: lrc
-    character(len=*),parameter  :: subname='(rrtmg_cap:state_diagnose)'
-
-    lstring = ''
-    if (present(string)) then
-       lstring = trim(string)
-    endif
-
-    call ESMF_StateGet(State, itemCount=fieldCount, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    allocate(fieldNameList(fieldCount))
-    call ESMF_StateGet(State, itemNameList=fieldNameList, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    do n = 1, fieldCount
-      call State_GetFldPtr(State, fieldNameList(n), dataPtr, rc=lrc)
-      if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-      write(tmpstr,'(A,3g14.7)') trim(subname)//' '//trim(lstring)//':'//trim(fieldNameList(n)), &
-        minval(dataPtr),maxval(dataPtr),sum(dataPtr)
-!      write(tmpstr,'(A)') trim(subname)//' '//trim(lstring)//':'//trim(fieldNameList(n))
-      call ESMF_LogWrite(trim(tmpstr), ESMF_LOGMSG_INFO, rc=dbrc)
-    enddo
-    deallocate(fieldNameList)
-
-    if (present(rc)) rc = lrc
-
-  end subroutine state_diagnose
-
-  !-----------------------------------------------------------------------------
-
-  subroutine state_reset(State, value, rc)
-    ! ----------------------------------------------
-    ! Set all fields to value in State
-    ! If value is not provided, reset to 0.0
-    ! ----------------------------------------------
-    type(ESMF_State), intent(inout) :: State
-    real(ESMF_KIND_R8), intent(in), optional :: value
-    integer, intent(out), optional  :: rc
-
-    ! local variables
-    integer                     :: i,j,k,n
-    integer                     :: fieldCount
-    character(len=64) ,pointer  :: fieldNameList(:)
-    real(ESMF_KIND_R8)          :: lvalue
-    real(ESMF_KIND_R8), pointer :: dataPtr(:,:,:)
-    character(len=*),parameter :: subname='(rrtmg_cap:state_reset)'
-
-    if (present(rc)) rc = ESMF_SUCCESS
-
-    lvalue = 0._ESMF_KIND_R8
-    if (present(value)) then
-      lvalue = value
-    endif
-
-    call ESMF_StateGet(State, itemCount=fieldCount, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    allocate(fieldNameList(fieldCount))
-    call ESMF_StateGet(State, itemNameList=fieldNameList, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    do n = 1, fieldCount
-      call State_GetFldPtr(State, fieldNameList(n), dataPtr, rc=rc)
-      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-
-      do k=lbound(dataPtr,3),ubound(dataPtr,3)
-      do j=lbound(dataPtr,2),ubound(dataPtr,2)
-      do i=lbound(dataPtr,1),ubound(dataPtr,1)
-         dataPtr(i,j,k) = lvalue
-      enddo
-      enddo
-      enddo
-
-    enddo
-    deallocate(fieldNameList)
-
-  end subroutine state_reset
-
-  !-----------------------------------------------------------------------------
-
-  subroutine State_GetFldPtr(ST, fldname, fldptr, rc)
-    type(ESMF_State), intent(in) :: ST
-    character(len=*), intent(in) :: fldname
-    real(ESMF_KIND_R8), pointer, intent(in) :: fldptr(:,:,:)
-    integer, intent(out), optional :: rc
-
-    ! local variables
-    type(ESMF_Field) :: lfield
-    integer :: lrc
-    character(len=*),parameter :: subname='(rrtmg_cap:State_GetFldPtr)'
-
-    call ESMF_StateGet(ST, itemName=trim(fldname), field=lfield, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    call ESMF_FieldGet(lfield, farrayPtr=fldptr, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-
-    if (present(rc)) rc = lrc
-
-  end subroutine State_GetFldPtr
-
-  !-----------------------------------------------------------------------------
-  logical function FieldBundle_FldChk(FB, fldname, rc)
-    type(ESMF_FieldBundle), intent(in) :: FB
-    character(len=*)      ,intent(in) :: fldname
-    integer, intent(out), optional :: rc
-
-    ! local variables
-    integer :: lrc
-    character(len=*),parameter :: subname='(module_MEDIATOR:FieldBundle_FldChk)'
-
-    if (present(rc)) rc = ESMF_SUCCESS
-
-    FieldBundle_FldChk = .false.
-
-    call ESMF_FieldBundleGet(FB, fieldName=trim(fldname), isPresent=isPresent, rc=lrc)
-    if (present(rc)) rc = lrc
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    if (isPresent) then
-       FieldBundle_FldChk = .true.
-    endif
-
-  end function FieldBundle_FldChk
-
-  !-----------------------------------------------------------------------------
-
-  subroutine FieldBundle_GetFldPtr(FB, fldname, fldptr, rc)
-    type(ESMF_FieldBundle), intent(in) :: FB
-    character(len=*)      , intent(in) :: fldname
-    real(ESMF_KIND_R8), pointer, intent(in) :: fldptr(:,:)
-    integer, intent(out), optional :: rc
-
-    ! local variables
-    type(ESMF_Field) :: lfield
-    integer :: lrc
-    character(len=*),parameter :: subname='(module_MEDIATOR:FieldBundle_GetFldPtr)'
-
-    if (present(rc)) rc = ESMF_SUCCESS
-
-    call ESMF_FieldBundleGet(FB, fieldName=trim(fldname), field=lfield, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-    call ESMF_FieldGet(lfield, farrayPtr=fldptr, rc=lrc)
-    if (ESMF_LogFoundError(rcToCheck=lrc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) return
-
-    if (present(rc)) rc = lrc
-
-  end subroutine FieldBundle_GetFldPtr
-
-  !-----------------------------------------------------------------------------
-
-  subroutine RRTMG_FieldsSetup
-    character(len=*),parameter  :: subname='(rrtmg_cap:RRTMG_FieldsSetup)'
-
-!--------- import fields to Sea RRTMG -------------
-!    call fld_list_add(fldsToRRTMG_num, fldsToRRTMG, "inst_height_lowest"       , "will provide")
-
-!--------- export fields from Sea RRTMG -------------
-!    call fld_list_add(fldsFrRRTMG_num, fldsFrRRTMG, "sea_ice_temperature"             , "will provide")
-
-
-  end subroutine RRTMG_FieldsSetup
-
-  !-----------------------------------------------------------------------------
-
-  subroutine fld_list_add(num, fldlist, stdname, transferOffer, data, shortname)
-    ! ----------------------------------------------
-    ! Set up a list of field information
-    ! ----------------------------------------------
-    integer,             intent(inout)  :: num
-    type(fld_list_type), intent(inout)  :: fldlist(:)
-    character(len=*),    intent(in)     :: stdname
-    character(len=*),    intent(in)     :: transferOffer
-    real(ESMF_KIND_R8), dimension(:,:,:), optional, target :: data
-    character(len=*),    intent(in),optional :: shortname
-
-    ! local variables
-    integer :: rc
-    character(len=*), parameter :: subname='(rrtmg_cap:fld_list_add)'
-
-    ! fill in the new entry
-
-    num = num + 1
-    if (num > fldsMax) then
-      call ESMF_LogWrite(trim(subname)//": ERROR num gt fldsMax "//trim(stdname), &
-        ESMF_LOGMSG_ERROR, line=__LINE__, file=__FILE__, rc=dbrc)
-      return
-    endif
-
-    fldlist(num)%stdname        = trim(stdname)
-    if (present(shortname)) then
-       fldlist(num)%shortname   = trim(shortname)
-    else
-       fldlist(num)%shortname   = trim(stdname)
-    endif
-    fldlist(num)%transferOffer  = trim(transferOffer)
-    if (present(data)) then
-      fldlist(num)%assoc        = .true.
-      fldlist(num)%farrayPtr    => data
-    else
-      fldlist(num)%assoc        = .false.
-    endif
-
-  end subroutine fld_list_add
 
   subroutine dumpRRTMGInternal(grid, slice, stdname, nop, farray)
 
