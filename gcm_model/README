@@ -4,6 +4,16 @@ module load intel impi netcdf
 setenv ESMFMKFILE ESMFMKFILE
 
 # Build and install
+# Manually edit the following entries in makefile for your platform:
+# (Mandatory) Installation directory for the cap 
+# INSTALLDIR=
+# (optional) Fortran compiler
+# FC=mpiifort
+# (optional) Machine ID:
+# MACHINE=theia
+# (optional) Build type
+# BUILD=debug
+
 gmake install
 
 # Build and Run this cap with ComponentExplorer
