@@ -24,11 +24,9 @@ module ESM
   use ATM, only: atmSS => SetServices
   use OCN, only: ocnSS => SetServices
   use MED, only: medSS => SetServices
-
   use ICE, only: iceSS => SetServices
-  use RTM, only: rtmSS => SetServices
+  use rrtmg_cap, only: rtmSS => SetServices
   
-!  use NUOPC_Connector, only: cplSS => SetServices
   USE ESPC_Connector, only: cplSS => SetServices
   
   implicit none

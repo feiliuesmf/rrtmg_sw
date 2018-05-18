@@ -70,11 +70,14 @@ install: $(LIBRARY)
 	@echo "ESMF_DEP_CMPL_OBJS = " >> rrtmg_sw.mk.install
 	@echo "ESMF_DEP_LINK_OBJS = $(INSTALLDIR)/librrtmg_sw.a " >> rrtmg_sw.mk.install
 	mkdir -p $(INSTALLDIR)
-	-cp -f librrtmg_sw.a mod/*.mod $(INSTALLDIR) 
+	-cp -f librrtmg_sw.a mod/*.mod *.mod $(INSTALLDIR) 
 	-cp -f rrtmg_sw.mk.install $(INSTALLDIR)/rrtmg_sw.mk
 
 clean:
-	rm -rf *.o *.so *.mod obj/*.o mod/*.mod
+	rm -rf *.o *.so *.mod obj/*.o mod/*.mod install/*
+
+.PHONY: install clean
+
 %.o: %.f90
 	$(FC) $(FCFLAGS) $(INCLUDE) -o $@ -c $<
 # The rest is generated from makedepf90

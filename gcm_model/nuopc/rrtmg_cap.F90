@@ -8,7 +8,7 @@
 ! As a radiation cap, Fields are created on the Grid transferred over from ATM.
 !
 
-module rrtmg_sw_cap_mod
+module rrtmg_cap
 
   use rrtmg_sw_init
   use rrtmg_sw_rad
@@ -361,15 +361,15 @@ module rrtmg_sw_cap_mod
 
       do i = 1, nfields
 
-        call NUOPC_Advertise(state, &
-          standardName=exportFieldList(i), &
-          name=exportFieldSN(i), &
-          TransferOfferGeomObject="cannot provide", &
-          rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
+!        call NUOPC_Advertise(state, &
+!          standardName=exportFieldList(i), &
+!          name=exportFieldSN(i), &
+!          TransferOfferGeomObject="cannot provide", &
+!          rc=rc)
+!        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+!          line=__LINE__, &
+!          file=__FILE__)) &
+!          return  ! bail out
 
       enddo
 
