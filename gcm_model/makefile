@@ -3,7 +3,7 @@
 # This builds the package into a shared library that can be linked into a coupled system
 #
 
-INSTALLDIR=/scratch4/NCEPDEV/ocean/noscrub/Fei.Liu/RRTMG/rrtmg_sw_v4.02/gcm_model/install
+INSTALLDIR=$(shell pwd)/install
 MACHINE=theia
 BUILD=debug
 
@@ -15,25 +15,36 @@ ESMF_INC        = $(ESMF_F90COMPILEPATHS)
 ESMF_LIB        = $(ESMF_F90LINKPATHS) $(ESMF_F90LINKRPATHS) $(ESMF_F90ESMFLINKLIBS)
 
 VERSION=4.0.2
-FC=mpiifort
+FC=gfortran
 MODULES_DIR=modules
 SRC_DIR=src
 OBJ_DIR=obj
 MOD_DIR=mod
 
+ifeq ($(FC), mpiifort)
+INCLUDE=-I. -Imod -I$(NETCDF)/include
+LIB=-L$(NETCDF)/lib -lnetcdf
 ifeq ($(BUILD),debug)
 	FCFLAGS=-O0 -g -traceback -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
 else
 	FCFLAGS=-O2 -g -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
 endif
+endif
+
+ifeq ($(FC), gfortran)
+ifeq ($(BUILD),debug)
+	FCFLAGS=-cpp -O0 -g  -fPIC -fno-range-check
+else
+	FCFLAGS=-O2 -g  -fPIC -M $(MOD_DIR)
+endif
+endif
+
 LINKFLAGS=-shared
 AR=ar
 ARFLAGS=-r
 
 TARGET=librrtmg_sw.$(VERSION).so
 SOLIB=librrtmg_sw.so
-INCLUDE=-I. -Imod -I$(NETCDF)/include
-LIB=-L$(NETCDF)/lib -lnetcdf
 LIBRARY=librrtmg_sw.a
 
 
@@ -149,5 +160,5 @@ $(OBJ_DIR)/rrtmg_sw_taumol.o : $(SRC_DIR)/rrtmg_sw_taumol.f90
 $(OBJ_DIR)/rrtmg_sw_vrtqdr.o : $(SRC_DIR)/rrtmg_sw_vrtqdr.f90 
 	$(FC) $(FCFLAGS) $(INCLUDE) -o $@ -c $<
 obj/rrtmg_cap.o : nuopc/rrtmg_cap.F90 
-	$(FC) $(INCLUDE) $(ESMF_F90COMPILEOPTS) $(ESMF_F90COMPILEPATHS) $(ESMF_F90COMPILEFREECPP) $(ESMF_F90COMPILECPPFLAGS) -mod $(MOD_DIR) -o $@ -c $<
+	$(FC) $(INCLUDE) $(ESMF_F90COMPILEOPTS) $(ESMF_F90COMPILEPATHS) $(ESMF_F90COMPILEFREECPP) $(ESMF_F90COMPILECPPFLAGS) -o $@ -c $<
 

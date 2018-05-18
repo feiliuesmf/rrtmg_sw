@@ -5,6 +5,7 @@
 !
 ! 3/22/18
 ! This is now acting as a cap/connector between NUOPC driver and RRTMG code.
+! As a radiation cap, Fields are created on the Grid transferred over from ATM.
 !
 
 module rrtmg_sw_cap_mod
@@ -15,25 +16,137 @@ module rrtmg_sw_cap_mod
   use ESMF
   use NUOPC
   use NUOPC_Model, &
-    model_routine_SS      => SetServices, &
+    model_routine_SS         => SetServices, &
     model_label_CheckImport  => label_CheckImport, &
-    model_label_Advance   => label_Advance, &
-    model_label_Finalize  => label_Finalize
+    model_label_Advance      => label_Advance, &
+    model_label_Finalize     => label_Finalize
 
   implicit none
   private
   public SetServices
 
+  character(len=45)      :: exportFieldList(6) = (/ &
+    "Total Sky Shortwave Upward Flux             ", &
+    "Total Sky Shortward Downard Flux            ", &
+    "Total Sky Shortward Radiative Heating Rate  ", &
+    "Clear Sky Shortwave Upward Flux             ", &
+    "Clear Sky Shortwave Downward Flux           ", &
+    "Clear Sky Shortwave Radiative Heating Rate  " /) 
+
+  character(len=8)      :: exportFieldSN(6) = (/ &
+    "tssuf   ", &
+    "tssdf   ", &
+    "tssrhr  ", &
+    "cssuf   ", &
+    "cssdf   ", &
+    "cssrhr  " /) 
+
+  character(len=55)      :: importFieldList(39) = (/ &
+  "Layer pressures (hPa, mb)                             ",&
+  "Interface pressures (hPa, mb)                         ",&
+  "Layer temperatures (K)                                ",&
+  "Interface temperatures (K)                            ",&
+  "Surface temperature (K)                               ",&
+  "H2O volume mixing ratio                               ",&
+  "O3 volume mixing ratio                                ",&
+  "CO2 volume mixing ratio                               ",&
+  "Methane volume mixing ratio                           ",&
+  "Nitrous oxide volume mixing ratio                     ",&
+  "Oxygen volume mixing ratio                            ",&
+  "UV/vis surface albedo direct rad                      ",&
+  "Near-IR surface albedo direct rad                     ",&
+  "UV/vis surface albedo: diffuse rad                    ",&
+  "Near-IR surface albedo: diffuse rad                   ",&
+  "Day of the year (used to get Earth/Sun                ",&
+  "Flux adjustment for Earth/Sun distance                ",&
+  "Cosine of solar zenith angle                          ",&
+  "Solar constant (W/m2)                                 ",&
+  "Flag for solar variability method                     ",&
+  "Facular and sunspot amplitude                         ",&
+  "Solar variability scale factors                       ",&
+  "Fraction of averaged 11-year solar cycle (0-1)        ",&
+  "Flag for cloud optical properties                     ",&
+  "Flag for ice particle specification                   ",&
+  "Flag for liquid droplet specification                 ",&
+  "Cloud fraction                                        ",&
+  "In-cloud optical depth                                ",&
+  "In-cloud single scattering albedo                     ",&
+  "In-cloud asymmetry parameter                          ",&
+  "In-cloud forward scattering fraction                  ",&
+  "In-cloud ice water path (g/m2)                        ",&
+  "In-cloud liquid water path (g/m2)                     ",&
+  "Cloud ice effective radius (microns)                  ",&
+  "Cloud water drop effective radius (microns)           ",&
+  "Aerosol optical depth (iaer=10 only)                  ",&
+  "Aerosol single scattering albedo (iaer=10 only)       ",&
+  "Aerosol asymmetry parameter (iaer=10 only)            ",&
+  "Aerosol optical depth at 0.55 micron (iaer=6 only)    " /)
+  character(len=10)       :: importFieldSN(39) = (/ &
+  "play      ", &
+  "plev      ", &
+  "tlay      ", &
+  "tlev      ", &
+  "tsfc      ", &
+  "h2ovmr    ", &
+  "o3vmr     ", &
+  "co2vmr    ", &
+  "ch4vmr    ", &
+  "n2ovmr    ", &
+  "o2vmr     ", &
+  "asdir     ", &
+  "aldir     ", &
+  "asdif     ", &
+  "aldif     ", &
+  "dyofyr    ", &
+  "adjes     ", &
+  "coszen    ", &
+  "scon      ", &
+  "isolvar   ", &
+  "indsolvar ", &
+  "bndsolvar ", &
+  "solcycfrac", &
+  "inflgsw   ", &
+  "iceflgsw  ", &
+  "liqflgsw  ", &
+  "cldfmcl   ", &
+  "taucmcl   ", &
+  "ssacmcl   ", &
+  "asmcmcl   ", &
+  "fsfcmcl   ", &
+  "ciwpmcl   ", &
+  "clwpmcl   ", &
+  "reicmcl   ", &
+  "relqmcl   ", &
+  "tauaer    ", &
+  "ssaaer    ", &
+  "asmaer    ", &
+  "ecaer     " /)
+
+  integer   :: import_slice = 0
+  integer   :: export_slice = 0
+
+  type fld_list_type
+    character(len=64) :: stdname
+    character(len=64) :: shortname
+    character(len=64) :: transferOfferGeom
+    character(len=64) :: transferOfferField
+    logical           :: assoc    ! is the farrayPtr associated with internal data
+    real(ESMF_KIND_R8), dimension(:,:,:), pointer :: farrayPtr
+  end type fld_list_type
+
+  integer :: fldsToRRTMG_num = 0
+  integer :: fldsFrRRTMG_num = 6
+
   !https://www.ohio.edu/mechanical/thermo/property_tables/air/air_Cp_Cv.html
-  real(kind=rb)      :: cpdair =  1004      ! Cp = 1004 J/kg K at 298K
+  real(kind=rb)               :: cpdair =  1004      ! Cp = 1004 J/kg K at 298K
 
   integer(kind=im), parameter :: ncol = 1        ! Number of horizontal columns     
   integer(kind=im), parameter :: nlay = 50       ! Number of model layers
   !integer(kind=im), parameter :: ngptsw = 112
 
-  integer(kind=im)  :: icld            ! Cloud overlap method
-  integer(kind=im)  :: iaer            ! Aerosol option flag
-  real              :: p0 = 1013.25    ! 1 atm
+  integer(kind=im)       :: icld            ! Cloud overlap method
+  integer(kind=im)       :: iaer            ! Aerosol option flag
+  real                   :: p0 = 1013.25    ! 1 atm
   real(kind=rb), pointer :: play(:,:)          ! Layer pressures (hPa, mb)
   real(kind=rb), pointer :: plev(:,:)          ! Interface pressures (hPa, mb)
   real(kind=rb), pointer :: tlay(:,:)          ! Layer temperatures (K)
@@ -49,17 +162,17 @@ module rrtmg_sw_cap_mod
   real(kind=rb), pointer :: aldir(:)           ! Near-IR surface albedo direct rad
   real(kind=rb), pointer :: asdif(:)           ! UV/vis surface albedo: diffuse rad
   real(kind=rb), pointer :: aldif(:)           ! Near-IR surface albedo: diffuse rad
-  integer(kind=im)       :: dyofyr          ! Day of the year (used to get Earth/Sun
+  integer(kind=im)       :: dyofyr             ! Day of the year (used to get Earth/Sun
   real(kind=rb)          :: adjes              ! Flux adjustment for Earth/Sun distance
   real(kind=rb), pointer :: coszen(:)          ! Cosine of solar zenith angle
   real(kind=rb)          :: scon               ! Solar constant (W/m2)
-  integer(kind=im)       :: isolvar         ! Flag for solar variability method
-  real(kind=rb), pointer :: indsolvar(:) ! Facular and sunspot amplitude 
-  real(kind=rb), pointer :: bndsolvar(:) ! Solar variability scale factors 
-  real(kind=rb)          :: solcycfrac   ! Fraction of averaged 11-year solar cycle (0-1)
-  integer(kind=im)       :: inflgsw         ! Flag for cloud optical properties
-  integer(kind=im)       :: iceflgsw        ! Flag for ice particle specification
-  integer(kind=im)       :: liqflgsw        ! Flag for liquid droplet specification
+  integer(kind=im)       :: isolvar            ! Flag for solar variability method
+  real(kind=rb), pointer :: indsolvar(:)       ! Facular and sunspot amplitude 
+  real(kind=rb), pointer :: bndsolvar(:)       ! Solar variability scale factors 
+  real(kind=rb)          :: solcycfrac         ! Fraction of averaged 11-year solar cycle (0-1)
+  integer(kind=im)       :: inflgsw            ! Flag for cloud optical properties
+  integer(kind=im)       :: iceflgsw           ! Flag for ice particle specification
+  integer(kind=im)       :: liqflgsw           ! Flag for liquid droplet specification
   real(kind=rb), pointer :: cldfmcl(:,:,:)     ! Cloud fraction
   real(kind=rb), pointer :: taucmcl(:,:,:)     ! In-cloud optical depth
   real(kind=rb), pointer :: ssacmcl(:,:,:)     ! In-cloud single scattering albedo
@@ -88,28 +201,6 @@ module rrtmg_sw_cap_mod
                                                   !    Dimensions: (ncol,nlay+1)
   real(kind=rb), pointer :: swhrc(:,:)        ! Clear sky shortwave radiative heating rate (K/d)
 
-  integer   :: import_slice = 0
-  integer   :: export_slice = 0
-
-  type fld_list_type
-    character(len=64) :: stdname
-    character(len=64) :: shortname
-    character(len=64) :: transferOffer
-    logical           :: assoc    ! is the farrayPtr associated with internal data
-    real(ESMF_KIND_R8), dimension(:,:,:), pointer :: farrayPtr
-  end type fld_list_type
-
-  integer,parameter :: fldsMax = 100
-  integer :: fldsToRRTMG_num = 0
-  type (fld_list_type) :: fldsToRRTMG(fldsMax)
-  integer :: fldsFrRRTMG_num = 0
-  type (fld_list_type) :: fldsFrRRTMG(fldsMax)
-
-  character(len=256) :: tmpstr
-  character(len=2048):: info
-  logical :: isPresent
-  integer :: dbrc     ! temporary debug rc value
-
   contains
   !-----------------------------------------------------------------------
   !------------------- RRTMG code starts here -----------------------
@@ -119,7 +210,6 @@ module rrtmg_sw_cap_mod
 
     type(ESMF_GridComp)  :: gcomp
     integer, intent(out) :: rc
-    character(len=*),parameter  :: subname='(rrtmg_cap:SetServices)'
 
     rc = ESMF_SUCCESS
     
@@ -140,13 +230,25 @@ module rrtmg_sw_cap_mod
 
     ! set entry point for methods that require specific implementation
     call NUOPC_CompSetEntryPoint(gcomp, ESMF_METHOD_INITIALIZE, &
-      phaseLabelList=(/"IPDv01p1"/), userRoutine=InitializeAdvertise, rc=rc)
+      phaseLabelList=(/"IPDv03p1"/), userRoutine=InitializeAdvertise, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
     call NUOPC_CompSetEntryPoint(gcomp, ESMF_METHOD_INITIALIZE, &
-      phaseLabelList=(/"IPDv01p3"/), userRoutine=InitializeRealize, rc=rc)
+      phaseLabelList=(/"IPDv03p3"/), userRoutine=InitializeRealize, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call NUOPC_CompSetEntryPoint(gcomp, ESMF_METHOD_INITIALIZE, &
+      phaseLabelList=(/"IPDv03p4"/), userRoutine=InitializeAcceptGrid, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call NUOPC_CompSetEntryPoint(gcomp, ESMF_METHOD_INITIALIZE, &
+      phaseLabelList=(/"IPDv03p5"/), userRoutine=InitializeCompleteField, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -179,24 +281,21 @@ module rrtmg_sw_cap_mod
       file=__FILE__)) &
       return  ! bail out
 
-
-    !call RRTMG_FieldsSetup()
-
   end subroutine
 
   !-----------------------------------------------------------------------------
 
-  subroutine InitializeP0(gcomp, importState, exportState, clock, rc)
-    type(ESMF_GridComp)   :: gcomp
+  subroutine InitializeP0(model, importState, exportState, clock, rc)
+    type(ESMF_GridComp)   :: model
     type(ESMF_State)      :: importState, exportState
     type(ESMF_Clock)      :: clock
     integer, intent(out)  :: rc
     
     rc = ESMF_SUCCESS
 
-    ! Switch to IPDv01 by filtering all other phaseMap entries
-    call NUOPC_CompFilterPhaseMap(gcomp, ESMF_METHOD_INITIALIZE, &
-      acceptStringList=(/"IPDv01p"/), rc=rc)
+    ! Switch to IPDv03 by filtering all other phaseMap entries
+    call NUOPC_CompFilterPhaseMap(model, ESMF_METHOD_INITIALIZE, &
+      acceptStringList=(/"IPDv03p"/), rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -216,7 +315,6 @@ module rrtmg_sw_cap_mod
     ! Local Variables
     type(ESMF_VM)                          :: vm
     integer                                :: mpi_comm
-    character(len=*),parameter  :: subname='(rrtmg_cap:InitializeAdvertise)'
 
     rc = ESMF_SUCCESS
 
@@ -232,98 +330,87 @@ module rrtmg_sw_cap_mod
       file=__FILE__)) &
       return  ! bail out
 
-    call RRTMG_SW_INI(cpdair)
-
-    allocate(play(ncol, nlay))
-    allocate(plev(ncol, nlay+1))
-    allocate(tlay(ncol, nlay))
-    allocate(tlev(ncol, nlay+1))
-    allocate(tsfc(ncol))
-    allocate(h2ovmr(ncol, nlay))
-    allocate(o3vmr(ncol, nlay))
-    allocate(co2vmr(ncol, nlay))
-    allocate(ch4vmr(ncol, nlay))
-    allocate(n2ovmr(ncol, nlay))
-    allocate(o2vmr(ncol, nlay))
-    allocate(asdir(ncol))
-    allocate(aldir(ncol))
-    allocate(asdif(ncol))
-    allocate(aldif(ncol))
-    allocate(coszen(ncol))
-    allocate(cldfmcl(ngptsw, ncol, nlay))
-    allocate(taucmcl(ngptsw, ncol, nlay))
-    allocate(ssacmcl(ngptsw, ncol, nlay))
-    allocate(asmcmcl(ngptsw, ncol, nlay))
-    allocate(fsfcmcl(ngptsw, ncol, nlay))
-    allocate(ciwpmcl(ngptsw, ncol, nlay))
-    allocate(clwpmcl(ngptsw, ncol, nlay))
-    allocate(reicmcl(ncol, nlay))
-    allocate(relqmcl(ncol, nlay))
-    allocate(tauaer(ncol, nlay, nbndsw))
-    allocate(ssaaer(ncol, nlay, nbndsw))
-    allocate(asmaer(ncol, nlay, nbndsw))
-    allocate(ecaer(ncol, nlay, nbndsw))
-
-    allocate(swuflx(ncol, nlay+1))
-    allocate(swdflx(ncol, nlay+1))
-    allocate(swhr(ncol, nlay))
-    allocate(swuflxc(ncol, nlay+1))
-    allocate(swdflxc(ncol, nlay+1))
-    allocate(swhrc(ncol, nlay))
-    call RRTMG_AdvertiseFields(importState, fldsToRRTMG_num, fldsToRRTMG, rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-    call RRTMG_AdvertiseFields(exportState, fldsFrRRTMG_num, fldsFrRRTMG, rc)
+    call RRTMG_FieldsSetup(rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
 
-    write(info,*) subname,' --- initialization phase 1 completed --- '
-    call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
+    !call AdvertiseImpFields(importState, fldsToRRTMG_num, fldsToRRTMG, rc)
+    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !  line=__LINE__, &
+    !  file=__FILE__)) &
+    !  return  ! bail out
+    call AdvertiseExpFields(exportState, fldsFrRRTMG_num, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    contains
+
+    subroutine AdvertiseExpFields(state, nfields, rc)
+
+      type(ESMF_State), intent(inout)             :: state
+      integer,intent(in)                          :: nfields
+      integer, intent(inout)                      :: rc
+
+      integer                                     :: i
+
+      rc = ESMF_SUCCESS
+
+      do i = 1, nfields
+
+        call NUOPC_Advertise(state, &
+          standardName=exportFieldList(i), &
+          name=exportFieldSN(i), &
+          TransferOfferGeomObject="cannot provide", &
+          rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+
+      enddo
+
+    end subroutine AdvertiseExpFields
 
   end subroutine
   
   !-----------------------------------------------------------------------------
 
-  subroutine InitializeRealize(gcomp, importState, exportState, clock, rc)
-    type(ESMF_GridComp)  :: gcomp
-    type(ESMF_State)     :: importState, exportState
-    type(ESMF_Clock)     :: clock
-    integer, intent(out) :: rc
-
-    ! Local Variables
-    type(ESMF_VM)                          :: vm
-    type(ESMF_Grid)                        :: gridIn
-    type(ESMF_Grid)                        :: gridOut
-    character(len=*),parameter  :: subname='(rrtmg_cap:InitializeRealize)'
-
-    rc = ESMF_SUCCESS
-
-    ! We can check if npet is 4 or some other value to make sure
-    ! RRTMG is configured to run on the correct number of processors.
-
-    ! create a Grid object for Fields
-
-    gridOut = gridIn ! for now out same as in
-
-    call RRTMG_RealizeFields(importState, gridIn , fldsToRRTMG_num, fldsToRRTMG, "RRTMG import", rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-    call RRTMG_RealizeFields(exportState, gridOut, fldsFrRRTMG_num, fldsFrRRTMG, "RRTMG export", rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-
-    write(info,*) subname,' --- initialization phase 2 completed --- '
-    call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, line=__LINE__, file=__FILE__, rc=dbrc)
-
-  end subroutine
+!  subroutine InitializeRealize(gcomp, importState, exportState, clock, rc)
+!    type(ESMF_GridComp)  :: gcomp
+!    type(ESMF_State)     :: importState, exportState
+!    type(ESMF_Clock)     :: clock
+!    integer, intent(out) :: rc
+!
+!    ! Local Variables
+!    type(ESMF_VM)                          :: vm
+!    type(ESMF_Grid)                        :: gridIn
+!    type(ESMF_Grid)                        :: gridOut
+!
+!    rc = ESMF_SUCCESS
+!
+!    ! We can check if npet is 4 or some other value to make sure
+!    ! RRTMG is configured to run on the correct number of processors.
+!
+!    ! create a Grid object for Fields
+!
+!    gridOut = gridIn ! for now out same as in
+!
+!    call RRTMG_RealizeFields(importState, gridIn , fldsToRRTMG_num, fldsToRRTMG, "RRTMG import", rc)
+!    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+!      line=__LINE__, &
+!      file=__FILE__)) &
+!      return  ! bail out
+!    call RRTMG_RealizeFields(exportState, gridOut, fldsFrRRTMG_num, fldsFrRRTMG, "RRTMG export", rc)
+!    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+!      line=__LINE__, &
+!      file=__FILE__)) &
+!      return  ! bail out
+!
+!  end subroutine
 
   !-----------------------------------------------------------------------------
 
@@ -337,17 +424,12 @@ module rrtmg_sw_cap_mod
     type(ESMF_State)                       :: importState, exportState
     type(ESMF_Time)                        :: currTime
     type(ESMF_TimeInterval)                :: timeStep
-    character(len=*),parameter  :: subname='(rrtmg_cap:rrtmg_model_advance)'
 
     rc = ESMF_SUCCESS
-    write(info,*) subname,' --- run phase 1 called --- '
-    call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
-    
 
     import_slice = import_slice + 1
     export_slice = export_slice + 1
 
-    call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
     !  integer(kind=im), intent(inout) :: icld         ! Cloud overlap method
     !                                                  !    0: Clear only
     !                                                  !    1: Random
@@ -648,8 +730,6 @@ module rrtmg_sw_cap_mod
 ! optional I/O
              bndsolvar,indsolvar,solcycfrac)
 
-    write(info,*) subname,' --- run phase 1 completed --- '
-
   end subroutine 
 
   subroutine rrtmg_model_finalize(gcomp, rc)
@@ -661,12 +741,8 @@ module rrtmg_sw_cap_mod
     ! local variables
     type(ESMF_Clock)     :: clock
     type(ESMF_Time)                        :: currTime
-    character(len=*),parameter  :: subname='(rrtmg_cap:rrtmg_model_finalize)'
 
     rc = ESMF_SUCCESS
-
-    write(info,*) subname,' --- finalize called --- '
-    call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
 
     deallocate(play)
     deallocate(plev)
@@ -714,180 +790,649 @@ module rrtmg_sw_cap_mod
 
     !call RRTMG_Finalize
 
-    write(info,*) subname,' --- finalize completed --- '
-    call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
-
   end subroutine rrtmg_model_finalize
 
-  subroutine RRTMG_AdvertiseFields(state, nfields, field_defs, rc)
 
-    type(ESMF_State), intent(inout)             :: state
-    integer,intent(in)                          :: nfields
-    type(fld_list_type), intent(inout)          :: field_defs(:)
-    integer, intent(inout)                      :: rc
-
-    integer                                     :: i
-    character(len=*),parameter  :: subname='(rrtmg_cap:RRTMG_AdvertiseFields)'
+  subroutine InitializeRealize(model, importState, exportState, clock, rc)
+    type(ESMF_GridComp)  :: model
+    type(ESMF_State)     :: importState, exportState
+    type(ESMF_Clock)     :: clock
+    integer, intent(out) :: rc
+    
 
     rc = ESMF_SUCCESS
 
-    do i = 1, nfields
+    ! As a radiation component, check no grid is provided by radiation component
+    ! First examine import State
+    call RealizeFields(importState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call RealizeFields(exportState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
 
-      call NUOPC_Advertise(state, &
-        standardName=field_defs(i)%stdname, &
-        name=field_defs(i)%shortname, &
-        rc=rc)
+    contains
+
+    subroutine RealizeFields(State, rc)
+    type(ESMF_State)     :: State
+    integer, intent(out) :: rc
+    ! local variables    
+    type(ESMF_Field)                       :: field
+    type(ESMF_Grid)                        :: gridIn, gridOut
+    character(ESMF_MAXSTR)                 :: transferAction
+    integer                                :: nFields, i, icount
+    character(64), allocatable             :: itemNameList(:)
+    type(ESMF_StateItem_Flag), allocatable :: typeList(:)
+
+    call ESMF_StateGet(State, itemCount=icount, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    allocate(typeList(icount), itemNameList(icount))
+    call ESMF_StateGet(State, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    do i = 1, icount
+      if(typeList(i) == ESMF_STATEITEM_FIELD) then
+        call ESMF_LogWrite("Realize Field Name Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
+        ! This Field was marked with TransferOfferGeomObject="can provide", so here
+        ! we need to see what TransferActionGeomObject the Connector determined for
+        ! this Field:
+        call ESMF_StateGet(State, itemName=itemNameList(i), field=field, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+    
+        call NUOPC_GetAttribute(field, name="TransferActionGeomObject", &
+          value=transferAction, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        if (trim(transferAction)=="provide") then
+          ! the Connector instructed the RRTMG to provide the Grid object for "player"
+          call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+            msg="RRTMG cannot provide any Grid", &
+            line=__LINE__, &
+            file=__FILE__, &
+            rcToReturn=rc)
+          return  ! bail out
+        else  ! transferAction=="accept"
+          ! the Connector instructed the RRTMG to accept the Grid from RTM for "player"
+          call ESMF_LogWrite("RRTMG is accepting Grid for Field", &
+            ESMF_LOGMSG_INFO, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        endif
+      endif
+    enddo
+    deallocate(typeList, itemNameList)
+
+    end subroutine
+  end subroutine
+
+  subroutine InitializeAcceptGrid(model, importState, exportState, clock, rc)
+    type(ESMF_GridComp)  :: model
+    type(ESMF_State)     :: importState, exportState
+    type(ESMF_Clock)     :: clock
+    integer, intent(out) :: rc
+    
+    rc = ESMF_SUCCESS
+
+    call AcceptGrid(importState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call AcceptGrid(exportState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    call RRTMG_SW_INI(cpdair)
+
+    allocate(play(ncol, nlay))
+    allocate(plev(ncol, nlay+1))
+    allocate(tlay(ncol, nlay))
+    allocate(tlev(ncol, nlay+1))
+    allocate(tsfc(ncol))
+    allocate(h2ovmr(ncol, nlay))
+    allocate(o3vmr(ncol, nlay))
+    allocate(co2vmr(ncol, nlay))
+    allocate(ch4vmr(ncol, nlay))
+    allocate(n2ovmr(ncol, nlay))
+    allocate(o2vmr(ncol, nlay))
+    allocate(asdir(ncol))
+    allocate(aldir(ncol))
+    allocate(asdif(ncol))
+    allocate(aldif(ncol))
+    allocate(coszen(ncol))
+    allocate(cldfmcl(ngptsw, ncol, nlay))
+    allocate(taucmcl(ngptsw, ncol, nlay))
+    allocate(ssacmcl(ngptsw, ncol, nlay))
+    allocate(asmcmcl(ngptsw, ncol, nlay))
+    allocate(fsfcmcl(ngptsw, ncol, nlay))
+    allocate(ciwpmcl(ngptsw, ncol, nlay))
+    allocate(clwpmcl(ngptsw, ncol, nlay))
+    allocate(reicmcl(ncol, nlay))
+    allocate(relqmcl(ncol, nlay))
+    allocate(tauaer(ncol, nlay, nbndsw))
+    allocate(ssaaer(ncol, nlay, nbndsw))
+    allocate(asmaer(ncol, nlay, nbndsw))
+    allocate(ecaer(ncol, nlay, nbndsw))
+
+    allocate(swuflx(ncol, nlay+1))
+    allocate(swdflx(ncol, nlay+1))
+    allocate(swhr(ncol, nlay))
+    allocate(swuflxc(ncol, nlay+1))
+    allocate(swdflxc(ncol, nlay+1))
+    allocate(swhrc(ncol, nlay))
+
+    call ESMF_LogWrite("RRTMG - InitializeP4: DONE", &
+       ESMF_LOGMSG_INFO, rc=rc)
+
+    contains 
+  
+      subroutine AcceptGrid(State, rc)
+
+      type(ESMF_State)     :: State
+      integer, intent(out) :: rc
+      
+      ! local variables
+      type(ESMF_Field)              :: field
+      type(ESMF_Grid)               :: grid
+      integer                       :: localDeCount
+      character(80)                 :: name
+      character(160)                :: msgString
+
+      type(ESMF_DistGrid)           :: distgrid
+      integer                       :: dimCount, tileCount, arbDimCount
+      integer, allocatable          :: minIndexPTile(:,:), maxIndexPTile(:,:)
+      integer                       :: connectionCount
+      type(ESMF_DistGridConnection), allocatable :: connectionList(:)
+      logical                       :: regDecompFlag
+
+      ! local variables    
+      character(ESMF_MAXSTR)                 :: transferAction
+      integer                                :: nFields, i, icount
+      character(64), allocatable             :: itemNameList(:)
+      type(ESMF_StateItem_Flag), allocatable :: typeList(:)
+
+      call ESMF_StateGet(exportstate, itemCount=icount, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+      allocate(typeList(icount), itemNameList(icount))
+      call ESMF_StateGet(exportstate, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
         return  ! bail out
 
-    enddo
-
-  end subroutine RRTMG_AdvertiseFields
-
-  subroutine RRTMG_RealizeFields(state, grid, nfields, field_defs, tag, rc)
-
-    type(ESMF_State), intent(inout)             :: state
-    type(ESMF_Grid), intent(in)                 :: grid
-    integer, intent(in)                         :: nfields
-    type(fld_list_type), intent(inout)          :: field_defs(:)
-    character(len=*), intent(in)                :: tag
-    integer, intent(inout)                      :: rc
-
-    integer                                     :: i
-    type(ESMF_Field)                            :: field
-    integer                                     :: npet, nx, ny, pet, elb(2), eub(2), clb(2), cub(2), tlb(2), tub(2)
-    type(ESMF_VM)                               :: vm
-    character(len=*),parameter  :: subname='(rrtmg_cap:RRTMG_RealizeFields)'
- 
-    rc = ESMF_SUCCESS
-
-      !call ESMF_VMGetCurrent(vm, rc=rc)
-      !if (rc /= ESMF_SUCCESS) call ESMF_Finalize()
-
-      !call ESMF_VMGet(vm, petcount=npet, localPet=pet, rc=rc)
-      !if (rc /= ESMF_SUCCESS) call ESMF_Finalize()
-
-      !call ESMF_GridGet(grid, exclusiveLBound=elb, exclusiveUBound=eub, &
-      !                        computationalLBound=clb, computationalUBound=cub, &
-      !                        totalLBound=tlb, totalUBound=tub, rc=rc)
-      !if (rc /= ESMF_SUCCESS) call ESMF_Finalize()
-
-      !write(info, *) pet, 'exc', elb, eub, 'comp', clb, cub, 'total', tlb, tub
-      !call ESMF_LogWrite(subname // tag // " Grid "// info, &
-      !  ESMF_LOGMSG_INFO, &
-      !  line=__LINE__, &
-      !  file=__FILE__, &
-      !  rc=dbrc)
-
-    do i = 1, nfields
-
-      if (field_defs(i)%assoc) then
-        write(info, *) subname, tag, ' Field ', field_defs(i)%shortname, ':', &
-          lbound(field_defs(i)%farrayPtr,1), ubound(field_defs(i)%farrayPtr,1), &
-          lbound(field_defs(i)%farrayPtr,2), ubound(field_defs(i)%farrayPtr,2), &
-          lbound(field_defs(i)%farrayPtr,3), ubound(field_defs(i)%farrayPtr,3)
-        call ESMF_LogWrite(info, ESMF_LOGMSG_INFO, rc=dbrc)
-        field = ESMF_FieldCreate(grid=grid, &
-          farray=field_defs(i)%farrayPtr, indexflag=ESMF_INDEX_DELOCAL, &
-          name=field_defs(i)%shortname, rc=rc)
+      do i = 1, icount
+        if(typeList(i) == ESMF_STATEITEM_FIELD) then
+          call ESMF_LogWrite("Accept Grid Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
+      
+        ! access the field in the importState
+        call ESMF_StateGet(importState, field=field, itemName=itemNameList(i), rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, &
           file=__FILE__)) &
           return  ! bail out
-      else
-        field = ESMF_FieldCreate(grid, ESMF_TYPEKIND_R8, indexflag=ESMF_INDEX_DELOCAL, &
-          name=field_defs(i)%shortname, rc=rc)
+        ! construct a local Grid according to the transferred grid
+        call ESMF_FieldGet(field, grid=grid, rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, &
           file=__FILE__)) &
           return  ! bail out
+        call ESMF_GridGet(grid, distgrid=distgrid, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        call ESMF_DistGridGet(distgrid, dimCount=dimCount, tileCount=tileCount, &
+          connectionCount=connectionCount, regDecompFlag=regDecompFlag, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        allocate(minIndexPTile(dimCount, tileCount), &
+          maxIndexPTile(dimCount, tileCount))
+        allocate(connectionList(connectionCount))
+        call ESMF_DistGridGet(distgrid, minIndexPTile=minIndexPTile, &
+          maxIndexPTile=maxIndexPTile, connectionList=connectionList, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        if (regDecompFlag) then
+          ! The provider used a regDecomp scheme for DistGrid creation:
+          ! This means that the entire index space is covered (no holes), and
+          ! it the easieast is just to use a regDecomp scheme on the acceptor
+          ! side as well.
+          distgrid = ESMF_DistGridCreate(minIndexPTile=minIndexPTile, &
+            maxIndexPTile=maxIndexPTile, connectionList=connectionList, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          grid = ESMF_GridCreate(distgrid, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          ! swap out the transferred grid for the newly created one
+          call ESMF_FieldEmptySet(field, grid=grid, rc=rc)    
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          call ESMF_LogWrite("RRTMG - Just set Grid for Field"//trim(itemNameList(i)), &
+            ESMF_LOGMSG_INFO, rc=rc)
+        endif
+        deallocate(minIndexPTile, maxIndexPTile, connectionList)
       endif
-
-      if (NUOPC_IsConnected(state, fieldName=field_defs(i)%shortname)) then
-        call NUOPC_Realize(state, field=field, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-        call ESMF_LogWrite(subname // tag // " Field "// field_defs(i)%stdname // " is connected.", &
-          ESMF_LOGMSG_INFO, &
-          line=__LINE__, &
-          file=__FILE__, &
-          rc=dbrc)
-!        call ESMF_FieldPrint(field=field, rc=rc)
-!        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-!          line=__LINE__, &
-!          file=__FILE__)) &
-!          return  ! bail out
-      else
-        call ESMF_LogWrite(subname // tag // " Field "// field_defs(i)%stdname // " is not connected.", &
-          ESMF_LOGMSG_INFO, &
-          line=__LINE__, &
-          file=__FILE__, &
-          rc=dbrc)
-        ! TODO: Initialize the value in the pointer to 0 after proper restart is setup
-        !if(associated(field_defs(i)%farrayPtr) ) field_defs(i)%farrayPtr = 0.0
-        ! remove a not connected Field from State
-        call ESMF_StateRemove(state, (/field_defs(i)%shortname/), rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-      endif
-
     enddo
+    deallocate(typeList, itemNameList)
 
+    end subroutine
 
-  end subroutine RRTMG_RealizeFields
-
+  end subroutine
+    
   !-----------------------------------------------------------------------------
 
-  subroutine dumpRRTMGInternal(grid, slice, stdname, nop, farray)
+  subroutine InitializeCompleteField(model, importState, exportState, clock, rc)
+    type(ESMF_GridComp)  :: model
+    type(ESMF_State)     :: importState, exportState
+    type(ESMF_Clock)     :: clock
+    integer, intent(out) :: rc
 
-    type(ESMF_Grid)          :: grid
-    integer, intent(in)      :: slice
-    character(len=*)         :: stdname
-    character(len=*)         :: nop
-    real(ESMF_KIND_R8), dimension(:,:,:), target :: farray
+    rc = ESMF_SUCCESS
 
-    type(ESMF_Field)         :: field
-    real(ESMF_KIND_R8), dimension(:,:), pointer  :: f2d
-    integer                  :: rc
-
-    return ! remove this line to debug field connection
-
-    field = ESMF_FieldCreate(grid, ESMF_TYPEKIND_R8, &
-      indexflag=ESMF_INDEX_DELOCAL, &
-      name=stdname, rc=rc)
+    call CompleteField(importState, writeGrid=.true., rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call CompleteField(exportState, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
 
-    call ESMF_FieldGet(field, farrayPtr=f2d, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
+    contains
 
-    f2d(:,:) = farray(:,:,1)
-
-    call ESMF_FieldWrite(field, filename='field_rrtmg_internal_'//trim(stdname)//'.nc', &
-      timeslice=slice, rc=rc) 
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-
-    call ESMF_FieldDestroy(field, rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
+    subroutine CompleteField(State, writeGrid, rc)
+    type(ESMF_State)              :: State
+    logical, intent(in), optional :: writeGrid
+    integer, intent(out)          :: rc
     
+    ! local variables
+    type(ESMF_Field)              :: field
+    type(ESMF_Grid)               :: grid
+    type(ESMF_Array)              :: array
+    character(80)                 :: name
+    character(160)                :: msgString
+    type(ESMF_FieldStatus_Flag)   :: fieldStatus
+    integer                       :: staggerEdgeLWidth(2)
+    integer                       :: staggerEdgeUWidth(2)
+    integer                       :: staggerAlign(2)
+
+    integer                                :: nFields, i, icount
+    character(64), allocatable             :: itemNameList(:)
+    type(ESMF_StateItem_Flag), allocatable :: typeList(:)
+    logical                                :: l_writeGrid = .false.
+
+    call ESMF_StateGet(exportstate, itemCount=icount, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    allocate(typeList(icount), itemNameList(icount))
+    call ESMF_StateGet(exportstate, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    do i = 1, icount
+      if(typeList(i) == ESMF_STATEITEM_FIELD) then
+        call ESMF_LogWrite("Complete Field Name Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
+
+        ! access the field in the importState
+        call ESMF_StateGet(importState, field=field, itemName=itemNameList(i), rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        ! check status of field and decide on action
+        call ESMF_FieldGet(field, status=fieldStatus, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        if (fieldStatus==ESMF_FIELDSTATUS_COMPLETE) then
+          ! log a message
+          call ESMF_LogWrite("RRTMG - The Field was already complete", &
+            ESMF_LOGMSG_INFO, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        else
+          ! the transferred Grid is already set, allocate memory for data by complete
+          call ESMF_FieldEmptyComplete(field, typekind=ESMF_TYPEKIND_R8, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          ! log a message
+          call ESMF_LogWrite("RRTMG - Just completed the Field", &
+            ESMF_LOGMSG_INFO, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        endif
+      endif
+    enddo
+    deallocate(typeList, itemNameList)
+
+    if(present(writeGrid)) l_writeGrid = writeGrid
+
+    if(l_writeGrid) then
+    ! Use the last Field to dump the Grid information
+#ifdef TEST_MULTI_TILE_GRID    
+    ! write cubed sphere grid out to VTK
+    call ESMF_FieldGet(field, grid=grid, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_GridWriteVTK(grid, staggerloc=ESMF_STAGGERLOC_CENTER, &
+      filename="RRTMG-accepted-Grid-ssh_centers", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#endif
+
+    ! inspect the Grid name
+    call ESMF_FieldGet(field, grid=grid, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_GridGet(grid, name=name, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write (msgString,*) "RRTMG - InitializeP5: transferred Grid name = ", name
+    call ESMF_LogWrite(msgString, ESMF_LOGMSG_INFO, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    ! check the staggerEdgeWidth of the transferred grid 
+#ifdef TEST_GRID_EDGE_WIDTHS
+    ! center stagger
+    call ESMF_GridGet(grid, staggerloc=ESMF_STAGGERLOC_CENTER, &
+      staggerEdgeLWidth=staggerEdgeLWidth, &
+      staggerEdgeUWidth=staggerEdgeUWidth, &
+      staggerAlign=staggerAlign, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    print *, "staggerEdgeLWidth", staggerEdgeLWidth
+    print *, "staggerEdgeUWidth", staggerEdgeUWidth
+    print *, "staggerAlign", staggerAlign
+    if (any(staggerEdgeLWidth /= (/0,0/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeLWidth for ESMF_STAGGERLOC_CENTER", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    if (any(staggerEdgeUWidth /= (/0,0/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeUWidth for ESMF_STAGGERLOC_CENTER", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    ! corner stagger
+    call ESMF_GridGet(grid, staggerloc=ESMF_STAGGERLOC_CORNER, &
+      staggerEdgeLWidth=staggerEdgeLWidth, &
+      staggerEdgeUWidth=staggerEdgeUWidth, &
+      staggerAlign=staggerAlign, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    print *, "staggerEdgeLWidth", staggerEdgeLWidth
+    print *, "staggerEdgeUWidth", staggerEdgeUWidth
+    print *, "staggerAlign", staggerAlign
+    if (any(staggerEdgeLWidth /= (/1,1/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeLWidth for ESMF_STAGGERLOC_CORNER", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    if (any(staggerEdgeUWidth /= (/0,0/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeuWidth for ESMF_STAGGERLOC_CORNER", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    ! edge1 stagger
+    call ESMF_GridGet(grid, staggerloc=ESMF_STAGGERLOC_EDGE1, &
+      staggerEdgeLWidth=staggerEdgeLWidth, &
+      staggerEdgeUWidth=staggerEdgeUWidth, &
+      staggerAlign=staggerAlign, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    print *, "staggerEdgeLWidth", staggerEdgeLWidth
+    print *, "staggerEdgeUWidth", staggerEdgeUWidth
+    print *, "staggerAlign", staggerAlign
+    if (any(staggerEdgeLWidth /= (/0,1/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeLWidth for ESMF_STAGGERLOC_EDGE1", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    if (any(staggerEdgeUWidth /= (/1,1/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeUWidth for ESMF_STAGGERLOC_EDGE1", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    ! edge2 stagger
+    call ESMF_GridGet(grid, staggerloc=ESMF_STAGGERLOC_EDGE2, &
+      staggerEdgeLWidth=staggerEdgeLWidth, &
+      staggerEdgeUWidth=staggerEdgeUWidth, &
+      staggerAlign=staggerAlign, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    print *, "staggerEdgeLWidth", staggerEdgeLWidth
+    print *, "staggerEdgeUWidth", staggerEdgeUWidth
+    print *, "staggerAlign", staggerAlign
+    if (any(staggerEdgeLWidth /= (/1,0/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeLWidth for ESMF_STAGGERLOC_EDGE2", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+    if (any(staggerEdgeUWidth /= (/0,1/))) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="Wrong staggerEdgeUWidth for ESMF_STAGGERLOC_EDGE2", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return  ! bail out
+    endif
+#endif
+
+#if 1
+    ! testing the output of coord arrays
+    !TODO:
+    ! Coords are currently written in 2D index space even if there is coordinate
+    ! factorization used, e.g. in the Ufrm() GridCreate. Therefore the coord
+    ! arrays have replicated dims, and underlying allocation is only 1D. This 
+    ! should be changed in the ArrayWrite() where Arrays with replicated dims
+    ! should write out only the non-degenerate data, i.e. according to the 
+    ! actual data allocation. 
+    ! -> here that would be a 1D array for each coordiante dim.
+    ! center:
+    call ESMF_GridGetCoord(grid, coordDim=1, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_center_coord1.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_GridGetCoord(grid, coordDim=2, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_center_coord2.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#ifdef TEST_GRID_EDGE_WIDTHS
+    ! corner:
+    call ESMF_GridGetCoord(grid, staggerloc=ESMF_STAGGERLOC_CORNER, &
+      coordDim=1, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_corner_coord1.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_GridGetCoord(grid, staggerloc=ESMF_STAGGERLOC_CORNER, &
+      coordDim=2, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_corner_coord2.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    ! edge1:
+    call ESMF_GridGetCoord(grid, staggerloc=ESMF_STAGGERLOC_EDGE1, &
+      coordDim=1, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge1_coord1.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_GridGetCoord(grid, staggerloc=ESMF_STAGGERLOC_EDGE1, &
+      coordDim=2, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge1_coord2.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    ! edge2:
+    call ESMF_GridGetCoord(grid, staggerloc=ESMF_STAGGERLOC_EDGE2, &
+      coordDim=1, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge2_coord1.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_GridGetCoord(grid, staggerloc=ESMF_STAGGERLOC_EDGE2, &
+      coordDim=2, array=array, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge2_coord2.nc", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#endif
+#endif
+
+#if 1
+    ! write out the Grid into VTK file for inspection
+    call ESMF_GridWriteVTK(grid, staggerloc=ESMF_STAGGERLOC_CENTER, &
+      filename="RRTMG-accepted-Grid-pmsl_centers", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_LogWrite("Done writing RRTMG-accepted-Grid-pmsl_centers VTK", &
+      ESMF_LOGMSG_INFO, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#endif
+
+    endif  ! if(l_writeGrid)
+  end subroutine  ! internal subroutine CompleteField
+
   end subroutine
 
+  subroutine RRTMG_FieldsSetup(rc)
+
+    integer, intent(out)                   :: rc
+    rc = ESMF_SUCCESS
+
+  end subroutine
   !-----------------------------------------------------------------------------
 end module
