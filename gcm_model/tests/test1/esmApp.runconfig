@@ -1,0 +1,56 @@
+###############################################
+####  esmApp Run-Time Configuration File  #####
+###############################################
+
+# A concurrent run sequence
+runSeq::
+    @*              
+      @*
+        ATM -> MED
+        OCN -> MED
+        ICE -> MED
+        MED
+        MED -> ATM
+        MED -> OCN
+        MED -> ICE
+        ATM
+        OCN
+        ICE
+      @
+      ATM -> RTM
+      RTM
+      RTM -> ATM
+    @
+::
+
+xrunSeq::
+    @*
+      ATM -> MED
+      OCN -> MED
+      ICE -> MED
+      RTM -> MED
+      MED
+      MED -> OCN
+      OCN
+      MED -> ICE
+      ICE
+      @*
+        MED -> ATM
+        ATM
+        MED -> RTM
+        RTM
+        ATM -> MED
+        RTM -> MED
+        MED RunPhaseFast
+      @
+    @
+
+::
+
+
+# Attributes for components
+
+driverAttributes::
+  Verbosity = 0
+  Profiling = 0
+::
