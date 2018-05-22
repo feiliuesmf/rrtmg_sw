@@ -19,6 +19,7 @@ module rrtmg_cap
     model_routine_SS         => SetServices, &
     model_label_CheckImport  => label_CheckImport, &
     model_label_Advance      => label_Advance, &
+    model_label_DataInitialize  => label_DataInitialize, &
     model_label_Finalize     => label_Finalize
 
   implicit none
@@ -280,6 +281,12 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+    call NUOPC_CompSpecialize(gcomp, specLabel=model_label_DataInitialize, &
+      specRoutine=DataInitialize, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
 
   end subroutine
 
@@ -361,15 +368,15 @@ module rrtmg_cap
 
       do i = 1, nfields
 
-!        call NUOPC_Advertise(state, &
-!          standardName=exportFieldList(i), &
-!          name=exportFieldSN(i), &
-!          TransferOfferGeomObject="cannot provide", &
-!          rc=rc)
-!        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-!          line=__LINE__, &
-!          file=__FILE__)) &
-!          return  ! bail out
+        call NUOPC_Advertise(state, &
+          standardName=exportFieldList(i), &
+          !name=exportFieldSN(i), &
+          TransferOfferGeomObject="cannot provide", &
+          rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
 
       enddo
 
@@ -919,6 +926,8 @@ module rrtmg_cap
     allocate(asdif(ncol))
     allocate(aldif(ncol))
     allocate(coszen(ncol))
+    allocate(indsolvar(2))
+    allocate(bndsolvar(14))         ! 14 shortwave bands
     allocate(cldfmcl(ngptsw, ncol, nlay))
     allocate(taucmcl(ngptsw, ncol, nlay))
     allocate(ssacmcl(ngptsw, ncol, nlay))
@@ -970,13 +979,13 @@ module rrtmg_cap
       character(64), allocatable             :: itemNameList(:)
       type(ESMF_StateItem_Flag), allocatable :: typeList(:)
 
-      call ESMF_StateGet(exportstate, itemCount=icount, rc=rc)
+      call ESMF_StateGet(state, itemCount=icount, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
         return  ! bail out
       allocate(typeList(icount), itemNameList(icount))
-      call ESMF_StateGet(exportstate, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+      call ESMF_StateGet(state, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
@@ -986,8 +995,8 @@ module rrtmg_cap
         if(typeList(i) == ESMF_STATEITEM_FIELD) then
           call ESMF_LogWrite("Accept Grid Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
       
-        ! access the field in the importState
-        call ESMF_StateGet(importState, field=field, itemName=itemNameList(i), rc=rc)
+        ! access the field in the State
+        call ESMF_StateGet(State, field=field, itemName=itemNameList(i), rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, &
           file=__FILE__)) &
@@ -1062,12 +1071,12 @@ module rrtmg_cap
 
     rc = ESMF_SUCCESS
 
-    call CompleteField(importState, writeGrid=.true., rc=rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
-    call CompleteField(exportState, rc=rc)
+    !call CompleteField(importState, writeGrid=.true., rc=rc)
+    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !  line=__LINE__, &
+    !  file=__FILE__)) &
+    !  return  ! bail out
+    call CompleteField(exportState, writeGrid=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1096,13 +1105,13 @@ module rrtmg_cap
     type(ESMF_StateItem_Flag), allocatable :: typeList(:)
     logical                                :: l_writeGrid = .false.
 
-    call ESMF_StateGet(exportstate, itemCount=icount, rc=rc)
+    call ESMF_StateGet(state, itemCount=icount, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
     allocate(typeList(icount), itemNameList(icount))
-    call ESMF_StateGet(exportstate, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+    call ESMF_StateGet(state, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1112,8 +1121,8 @@ module rrtmg_cap
       if(typeList(i) == ESMF_STATEITEM_FIELD) then
         call ESMF_LogWrite("Complete Field Name Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
 
-        ! access the field in the importState
-        call ESMF_StateGet(importState, field=field, itemName=itemNameList(i), rc=rc)
+        ! access the field in the State
+        call ESMF_StateGet(State, field=field, itemName=itemNameList(i), rc=rc)
         if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           line=__LINE__, &
           file=__FILE__)) &
@@ -1319,7 +1328,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_center_coord1.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_center_coord1.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1329,7 +1338,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_center_coord2.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_center_coord2.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1342,7 +1351,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_corner_coord1.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_corner_coord1.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1353,7 +1362,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_corner_coord2.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_corner_coord2.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1365,7 +1374,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge1_coord1.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge1_coord1.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1376,7 +1385,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge1_coord2.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge1_coord2.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1388,7 +1397,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge2_coord1.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge2_coord1.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1399,7 +1408,7 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge2_coord2.nc", rc=rc)
+    call ESMF_ArrayWrite(array, "array_RRTMG-grid_edge2_coord2.nc", overwrite=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -1426,6 +1435,22 @@ module rrtmg_cap
     endif  ! if(l_writeGrid)
   end subroutine  ! internal subroutine CompleteField
 
+  end subroutine
+
+  subroutine DataInitialize(model, rc)
+    type(ESMF_GridComp)  :: model
+    integer, intent(out) :: rc
+
+    rc = ESMF_SUCCESS
+
+    ! indicate that data initialization is complete (breaking out of init-loop)
+    call NUOPC_CompAttributeSet(model, &
+      name="InitializeDataComplete", value="true", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    
   end subroutine
 
   subroutine RRTMG_FieldsSetup(rc)

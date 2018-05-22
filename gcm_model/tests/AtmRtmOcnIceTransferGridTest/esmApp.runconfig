@@ -23,30 +23,6 @@ runSeq::
     @
 ::
 
-xrunSeq::
-    @*
-      ATM -> MED
-      OCN -> MED
-      ICE -> MED
-      RTM -> MED
-      MED
-      MED -> OCN
-      OCN
-      MED -> ICE
-      ICE
-      @*
-        MED -> ATM
-        ATM
-        MED -> RTM
-        RTM
-        ATM -> MED
-        RTM -> MED
-        MED RunPhaseFast
-      @
-    @
-
-::
-
 
 # Attributes for components
 

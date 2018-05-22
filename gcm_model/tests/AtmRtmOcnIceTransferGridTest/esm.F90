@@ -88,21 +88,73 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
 
-    ! extend the NUOPC Field Dictionary to cover new "silly" Fields to/from RTM
-    call NUOPC_FieldDictionaryAddEntry("field_to_rtm", "sillyUnit", rc=rc);
+    ! extend the NUOPC Field Dictionary
+    call LoadDictionary(rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call NUOPC_FieldDictionaryAddEntry("field_from_rtm", "sillyUnit2", rc=rc);
+    call LoadDictionary1(rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
 
+    contains
+      ! Fields from RTM to ATM
+      subroutine LoadDictionary(rc)
 
-    CALL ESMF_GridCompGet(driver, vm=vm, rc=rc)
-    CALL ESMF_VMGet(vm, localPet=lPet,rc=rc)
+        integer, intent(out)   :: rc
+
+        integer                ::  i
+        character(len=45)      :: FieldList(6) = (/ &
+          "Total Sky Shortwave Upward Flux             ", &
+          "Total Sky Shortward Downard Flux            ", &
+          "Total Sky Shortward Radiative Heating Rate  ", &
+          "Clear Sky Shortwave Upward Flux             ", &
+          "Clear Sky Shortwave Downward Flux           ", &
+          "Clear Sky Shortwave Radiative Heating Rate  " /) 
+        character(len=8)      :: FieldUnit(6) = (/ &
+          "W m-2   ", &
+          "W m-2   ", &
+          "K s-1   ", &
+          "W m-2   ", &
+          "W m-2   ", &
+          "K s-1   " /) 
+        do i = 1, 6
+          call NUOPC_FieldDictionaryAddEntry(fieldList(i), fieldUnit(i), rc=rc);
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        enddo
+
+      end subroutine
+      ! Fields from Ice to RTM
+      subroutine LoadDictionary1(rc)
+
+        integer, intent(out)   :: rc
+
+        integer                ::  i
+        character(len=55)      :: FieldList(4) = (/ &
+          "UV/vis surface albedo direct rad                      ",&
+          "Near-IR surface albedo direct rad                     ",&
+          "UV/vis surface albedo: diffuse rad                    ",&
+          "Near-IR surface albedo: diffuse rad                   " /)
+        character(len=8)      :: FieldUnit(4) = (/ &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   " /) 
+        do i = 1, 4
+          call NUOPC_FieldDictionaryAddEntry(fieldList(i), fieldUnit(i), rc=rc);
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        enddo
+
+      end subroutine
     
   end subroutine
 
@@ -155,10 +207,20 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
 !--
-
     
     ! get the petCount
     call ESMF_GridCompGet(driver, petCount=petCount, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    CALL ESMF_GridCompGet(driver, vm=vm, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    CALL ESMF_VMGet(vm, localPet=lPet,rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &

@@ -23,6 +23,11 @@ module ICE
 
   TYPE(ESMF_VM) :: vm
   INTEGER :: lPet
+  character(len=55)      :: exportFieldList(4) = (/ &
+    "UV/vis surface albedo direct rad                      ",&
+    "Near-IR surface albedo direct rad                     ",&
+    "UV/vis surface albedo: diffuse rad                    ",&
+    "Near-IR surface albedo: diffuse rad                   " /)
   
   !-----------------------------------------------------------------------------
   contains
@@ -167,6 +172,15 @@ module ICE
       file=__FILE__)) &
       return  ! bail out
 
+    call NUOPC_Advertise(exportState, &
+      standardNames=exportFieldList, &
+      TransferOfferGeomObject="can provide", &
+      rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
   end subroutine
   
   !-----------------------------------------------------------------------------
@@ -182,6 +196,7 @@ module ICE
     type(ESMF_Field)        :: field
     type(ESMF_Grid)         :: gridIn
     type(ESMF_Grid)         :: gridOut
+    integer                 ::  i
     
     rc = ESMF_SUCCESS
     if(lPet.eq.0) print *, "Call ice InitializeP2"
@@ -253,6 +268,20 @@ module ICE
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+
+    do i = 1, 4
+      field = ESMF_FieldCreate(name=exportFieldList(i), grid=gridOut, &
+        typekind=ESMF_TYPEKIND_R8, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+      call NUOPC_Realize(exportState, field=field, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+    enddo
 
   end subroutine
   
