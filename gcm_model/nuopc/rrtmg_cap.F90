@@ -8,6 +8,8 @@
 ! As a radiation cap, Fields are created on the Grid transferred over from ATM.
 !
 
+#define USE_MESH
+
 module rrtmg_cap
 
   use rrtmg_sw_init
@@ -384,41 +386,6 @@ module rrtmg_cap
 
   end subroutine
   
-  !-----------------------------------------------------------------------------
-
-!  subroutine InitializeRealize(gcomp, importState, exportState, clock, rc)
-!    type(ESMF_GridComp)  :: gcomp
-!    type(ESMF_State)     :: importState, exportState
-!    type(ESMF_Clock)     :: clock
-!    integer, intent(out) :: rc
-!
-!    ! Local Variables
-!    type(ESMF_VM)                          :: vm
-!    type(ESMF_Grid)                        :: gridIn
-!    type(ESMF_Grid)                        :: gridOut
-!
-!    rc = ESMF_SUCCESS
-!
-!    ! We can check if npet is 4 or some other value to make sure
-!    ! RRTMG is configured to run on the correct number of processors.
-!
-!    ! create a Grid object for Fields
-!
-!    gridOut = gridIn ! for now out same as in
-!
-!    call RRTMG_RealizeFields(importState, gridIn , fldsToRRTMG_num, fldsToRRTMG, "RRTMG import", rc)
-!    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-!      line=__LINE__, &
-!      file=__FILE__)) &
-!      return  ! bail out
-!    call RRTMG_RealizeFields(exportState, gridOut, fldsFrRRTMG_num, fldsFrRRTMG, "RRTMG export", rc)
-!    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-!      line=__LINE__, &
-!      file=__FILE__)) &
-!      return  ! bail out
-!
-!  end subroutine
-
   !-----------------------------------------------------------------------------
 
   subroutine ModelAdvance(gcomp, rc)
@@ -829,9 +796,8 @@ module rrtmg_cap
     integer, intent(out) :: rc
     ! local variables    
     type(ESMF_Field)                       :: field
-    type(ESMF_Grid)                        :: gridIn, gridOut
     character(ESMF_MAXSTR)                 :: transferAction
-    integer                                :: nFields, i, icount
+    integer                                :: i, icount
     character(64), allocatable             :: itemNameList(:)
     type(ESMF_StateItem_Flag), allocatable :: typeList(:)
 
@@ -897,6 +863,7 @@ module rrtmg_cap
     
     rc = ESMF_SUCCESS
 
+#ifdef USE_GRID
     call AcceptGrid(importState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -907,6 +874,20 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+#endif
+
+#ifdef USE_MESH
+    call AcceptMesh(importState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call AcceptMesh(exportState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#endif
 
     call RRTMG_SW_INI(cpdair)
 
@@ -975,7 +956,7 @@ module rrtmg_cap
 
       ! local variables    
       character(ESMF_MAXSTR)                 :: transferAction
-      integer                                :: nFields, i, icount
+      integer                                :: i, icount
       character(64), allocatable             :: itemNameList(:)
       type(ESMF_StateItem_Flag), allocatable :: typeList(:)
 
@@ -1054,8 +1035,63 @@ module rrtmg_cap
         endif
         deallocate(minIndexPTile, maxIndexPTile, connectionList)
       endif
-    enddo
-    deallocate(typeList, itemNameList)
+
+      enddo
+      deallocate(typeList, itemNameList)
+
+      end subroutine
+      !-----------------------------------------------------------------------------
+      subroutine AcceptMesh(State, rc)
+
+      type(ESMF_State)     :: State
+      integer, intent(out) :: rc
+      
+      ! local variables
+      type(ESMF_Field)              :: field
+      type(ESMF_Mesh)               :: mesh
+      character(80)                 :: name
+      character(160)                :: msgString
+
+      ! local variables    
+      character(ESMF_MAXSTR)                 :: transferAction
+      integer                                :: i, icount
+      character(64), allocatable             :: itemNameList(:)
+      type(ESMF_StateItem_Flag), allocatable :: typeList(:)
+
+      call ESMF_StateGet(state, itemCount=icount, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+      allocate(typeList(icount), itemNameList(icount))
+      call ESMF_StateGet(state, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+
+      do i = 1, icount
+        if(typeList(i) == ESMF_STATEITEM_FIELD) then
+          call ESMF_LogWrite("Accept Mesh Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
+      
+          ! access the field in the State
+          call ESMF_StateGet(State, field=field, itemName=itemNameList(i), rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          ! construct a local Grid according to the transferred grid
+          call ESMF_FieldGet(field, mesh=mesh, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+            ! swap out the transferred grid for the newly created one
+          call ESMF_LogWrite("RRTMG - Just set Mesh for Field"//trim(itemNameList(i)), &
+            ESMF_LOGMSG_INFO, rc=rc)
+        endif
+      enddo
+      deallocate(typeList, itemNameList)
 
     end subroutine
 
@@ -1071,20 +1107,29 @@ module rrtmg_cap
 
     rc = ESMF_SUCCESS
 
-    !call CompleteField(importState, writeGrid=.true., rc=rc)
-    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !  line=__LINE__, &
-    !  file=__FILE__)) &
-    !  return  ! bail out
-    call CompleteField(exportState, writeGrid=.true., rc=rc)
+#ifdef USE_GRID
+    call CompleteFieldGrid(importState, writeGrid=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+    call CompleteFieldGrid(exportState, writeGrid=.true., rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#endif
+#ifdef USE_MESH
+    call CompleteFieldMesh(exportState, writeMesh=.true., rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+#endif
 
     contains
 
-    subroutine CompleteField(State, writeGrid, rc)
+    subroutine CompleteFieldGrid(State, writeGrid, rc)
     type(ESMF_State)              :: State
     logical, intent(in), optional :: writeGrid
     integer, intent(out)          :: rc
@@ -1100,7 +1145,7 @@ module rrtmg_cap
     integer                       :: staggerEdgeUWidth(2)
     integer                       :: staggerAlign(2)
 
-    integer                                :: nFields, i, icount
+    integer                                :: i, icount
     character(64), allocatable             :: itemNameList(:)
     type(ESMF_StateItem_Flag), allocatable :: typeList(:)
     logical                                :: l_writeGrid = .false.
@@ -1419,12 +1464,12 @@ module rrtmg_cap
 #if 1
     ! write out the Grid into VTK file for inspection
     call ESMF_GridWriteVTK(grid, staggerloc=ESMF_STAGGERLOC_CENTER, &
-      filename="RRTMG-accepted-Grid-pmsl_centers", rc=rc)
+      filename="RRTMG-accepted-Grid-centers", rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call ESMF_LogWrite("Done writing RRTMG-accepted-Grid-pmsl_centers VTK", &
+    call ESMF_LogWrite("Done writing RRTMG-accepted-Grid-centers VTK", &
       ESMF_LOGMSG_INFO, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -1433,6 +1478,105 @@ module rrtmg_cap
 #endif
 
     endif  ! if(l_writeGrid)
+    end subroutine  ! internal subroutine CompleteField
+
+    subroutine CompleteFieldMesh(State, writeMesh, rc)
+    type(ESMF_State)              :: State
+    logical, intent(in), optional :: writeMesh
+    integer, intent(out)          :: rc
+    
+    ! local variables
+    type(ESMF_Field)              :: field
+    type(ESMF_Mesh)               :: mesh
+    type(ESMF_Array)              :: array
+    character(80)                 :: name
+    character(160)                :: msgString
+    type(ESMF_FieldStatus_Flag)   :: fieldStatus
+
+    integer                                :: i, icount
+    character(64), allocatable             :: itemNameList(:)
+    type(ESMF_StateItem_Flag), allocatable :: typeList(:)
+    logical                                :: l_writeMesh = .false.
+
+    call ESMF_StateGet(state, itemCount=icount, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    allocate(typeList(icount), itemNameList(icount))
+    call ESMF_StateGet(state, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    do i = 1, icount
+      if(typeList(i) == ESMF_STATEITEM_FIELD) then
+        call ESMF_LogWrite("Complete Field Name Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
+
+        ! access the field in the State
+        call ESMF_StateGet(State, field=field, itemName=itemNameList(i), rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        ! check status of field and decide on action
+        call ESMF_FieldGet(field, status=fieldStatus, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        if (fieldStatus==ESMF_FIELDSTATUS_COMPLETE) then
+          ! log a message
+          call ESMF_LogWrite("RRTMG - The Field was already complete", &
+            ESMF_LOGMSG_INFO, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        else
+          ! the transferred Mesh is already set, allocate memory for data by complete
+          call ESMF_FieldEmptyComplete(field, typekind=ESMF_TYPEKIND_R8, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          ! log a message
+          call ESMF_LogWrite("RRTMG - Just completed the Field", &
+            ESMF_LOGMSG_INFO, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+        endif
+      endif
+    enddo
+    deallocate(typeList, itemNameList)
+
+    if(present(writeMesh)) l_writeMesh = writeMesh
+
+    if(l_writeMesh) then
+    call ESMF_FieldGet(field, Mesh=mesh, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    ! write out the Grid into VTK file for inspection
+    call ESMF_MeshWrite(mesh, &
+      filename="RRTMG-accepted-Mesh", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call ESMF_LogWrite("Done writing RRTMG-accepted-Mesh VTK", &
+      ESMF_LOGMSG_INFO, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    endif  ! if(l_writeMesh)
   end subroutine  ! internal subroutine CompleteField
 
   end subroutine

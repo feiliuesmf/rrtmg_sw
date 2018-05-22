@@ -1,0 +1,23 @@
+###############################################
+####  esmApp Run-Time Configuration File  #####
+###############################################
+
+# A concurrent run sequence
+runSeq::
+    @*              
+      RTM
+      RTM -> ATM      :remapMethod=redist
+      @*
+        ATM
+      @
+      ATM -> RTM      :remapMethod=redist
+    @
+::
+
+
+# Attributes for components
+
+driverAttributes::
+  Verbosity = 0
+  Profiling = 0
+::
