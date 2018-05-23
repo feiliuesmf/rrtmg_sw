@@ -25,9 +25,9 @@ ifeq ($(FC), mpiifort)
 INCLUDE=-I. -Imod -I$(NETCDF)/include
 LIB=-L$(NETCDF)/lib -lnetcdf
 ifeq ($(BUILD),debug)
-	FCFLAGS=-O0 -g -traceback -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
+	FCFLAGS=-O0 -g -O0 -traceback -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
 else
-	FCFLAGS=-O2 -g -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
+	FCFLAGS=-O2 -g -O0 -real-size 64 -integer-size 64 -fPIC -module $(MOD_DIR)
 endif
 endif
 
@@ -163,5 +163,5 @@ $(OBJ_DIR)/rrtmg_sw_taumol.o : $(SRC_DIR)/rrtmg_sw_taumol.f90
 $(OBJ_DIR)/rrtmg_sw_vrtqdr.o : $(SRC_DIR)/rrtmg_sw_vrtqdr.f90 
 	$(FC) $(FCFLAGS) $(INCLUDE) -o $@ -c $<
 obj/rrtmg_cap.o : nuopc/rrtmg_cap.F90 
-	$(FC) $(INCLUDE) $(ESMF_F90COMPILEOPTS) $(ESMF_F90COMPILEPATHS) $(ESMF_F90COMPILEFREECPP) $(ESMF_F90COMPILECPPFLAGS) -o $@ -c $<
+	$(FC) $(INCLUDE) $(ESMF_F90COMPILEOPTS) $(ESMF_F90COMPILEPATHS) $(ESMF_F90COMPILEFREECPP) $(ESMF_F90COMPILECPPFLAGS) -g -O0 -o $@ -c $<
 

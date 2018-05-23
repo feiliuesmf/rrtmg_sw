@@ -7,7 +7,6 @@
 ! NASA Goddard Space Flight Center.
 ! Licensed under the University of Illinois-NCSA License.
 !==============================================================================
-!#define xUSE_ICE
 
 module ATM
 
@@ -20,7 +19,6 @@ module ATM
   use NUOPC_Model, &
     model_routine_SS            => SetServices, &
     model_label_DataInitialize  => label_DataInitialize
-!--
   
   implicit none
   
@@ -30,6 +28,7 @@ module ATM
 
   TYPE(ESMF_VM) :: vm
   INTEGER :: lPet
+  integer :: importSlice = 0
 
   character(len=45)      :: importFieldList(6) = (/ &
     "Total Sky Shortwave Upward Flux             ", &
@@ -208,6 +207,15 @@ module ATM
     ! multiple calls to the ModelAdvance() routine. Every time the currTime
     ! will come in by one internal timeStep advanced. This goes until the
     ! stopTime of the internal Clock has been reached.
+
+    importSlice = importSlice + 1
+    call NUOPC_Write(importState, filenamePrefix="atm_import_", &
+      overwrite=.true., timeslice=importSlice, &
+      rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
 
     CALL ESMF_GridCompGet(model, vm=vm, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &

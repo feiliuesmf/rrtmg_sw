@@ -141,10 +141,10 @@ module rrtmg_cap
   integer :: fldsFrRRTMG_num = 6
 
   !https://www.ohio.edu/mechanical/thermo/property_tables/air/air_Cp_Cv.html
-  real(kind=rb)               :: cpdair =  1004      ! Cp = 1004 J/kg K at 298K
+  real(kind=rb)          :: cpdair =  1004      ! Cp = 1004 J/kg K at 298K
 
-  integer(kind=im), parameter :: ncol = 1        ! Number of horizontal columns     
-  integer(kind=im), parameter :: nlay = 50       ! Number of model layers
+  integer(kind=im)       :: ncol = 1        ! Number of horizontal columns     
+  integer(kind=im)       :: nlay = 50       ! Number of model layers
   !integer(kind=im), parameter :: ngptsw = 112
 
   integer(kind=im)       :: icld            ! Cloud overlap method
@@ -748,12 +748,12 @@ module rrtmg_cap
     deallocate(asmaer)
     deallocate(ecaer)
 
-    write(*,*) swuflx
-    write(*,*) swdflx
-    write(*,*) swhr
-    write(*,*) swuflx
-    write(*,*) swdflx
-    write(*,*) swhrc
+    !write(*,*) swuflx
+    !write(*,*) swdflx
+    !write(*,*) swhr
+    !write(*,*) swuflx
+    !write(*,*) swdflx
+    !write(*,*) swhrc
 
     deallocate(swuflx)
     deallocate(swdflx)
@@ -860,6 +860,11 @@ module rrtmg_cap
     type(ESMF_State)     :: importState, exportState
     type(ESMF_Clock)     :: clock
     integer, intent(out) :: rc
+
+    type(ESMF_Grid)      :: Grid
+    type(ESMF_Mesh)      :: Mesh
+    type(ESMF_DistGrid)  :: distGrid
+    integer              :: lsize
     
     rc = ESMF_SUCCESS
 
@@ -877,16 +882,31 @@ module rrtmg_cap
 #endif
 
 #ifdef USE_MESH
-    call AcceptMesh(importState, rc)
+    !AcceptMesh(importState, rc)
+    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !  line=__LINE__, &
+    !  file=__FILE__)) &
+    !  return  ! bail out
+    Mesh=AcceptMesh(exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-    call AcceptMesh(exportState, rc)
+
+    call ESMF_MeshGet(mesh, elementDistGrid=distgrid, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+
+    call ESMF_DistgridGet(distgrid, localDe=0, elementCount=lsize, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    ncol = lsize
+    write (*, *) 'ncol = ', ncol
 #endif
 
     call RRTMG_SW_INI(cpdair)
@@ -1041,7 +1061,9 @@ module rrtmg_cap
 
       end subroutine
       !-----------------------------------------------------------------------------
-      subroutine AcceptMesh(State, rc)
+      function AcceptMesh(State, rc)
+
+      type(ESMF_Mesh)      :: AcceptMesh
 
       type(ESMF_State)     :: State
       integer, intent(out) :: rc
@@ -1057,6 +1079,7 @@ module rrtmg_cap
       integer                                :: i, icount
       character(64), allocatable             :: itemNameList(:)
       type(ESMF_StateItem_Flag), allocatable :: typeList(:)
+      logical                                :: foundMesh = .false.
 
       call ESMF_StateGet(state, itemCount=icount, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1089,11 +1112,22 @@ module rrtmg_cap
             ! swap out the transferred grid for the newly created one
           call ESMF_LogWrite("RRTMG - Just set Mesh for Field"//trim(itemNameList(i)), &
             ESMF_LOGMSG_INFO, rc=rc)
+          foundMesh = .true.
         endif
       enddo
       deallocate(typeList, itemNameList)
 
-    end subroutine
+      if(foundMesh) then
+        AcceptMesh = mesh
+      else
+        call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+            msg="RRTMG cannot provide any Mesh", &
+            line=__LINE__, &
+            file=__FILE__, &
+            rcToReturn=rc)
+      endif
+
+    end function
 
   end subroutine
     

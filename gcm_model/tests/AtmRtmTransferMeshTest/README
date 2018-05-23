@@ -20,7 +20,10 @@ Description:
   ATM, RTM consisting of advertise and realize.
 
   The RTM component is from ../../install/rrtmg.mk makefile segment. The RTM component accepts 
-  Grids from ATM and builds the 6 export Fields. 
+  Mesh from ATM and builds the 6 export Fields. 
+
+  Initial Mesh in ATM is created from a 2.5 degree gridfile at:
+  wget --no-check-certificate https://raw.githubusercontent.com/feiliuesmf/esmftest/master/xgrid/test1/ll2.5deg_grid.nc
 
 Build:
   - Set environment variable ESMFMKFILE to point to the esmf.mk of your ESMF
