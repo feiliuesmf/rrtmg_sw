@@ -128,14 +128,15 @@ module rrtmg_cap
   integer   :: import_slice = 0
   integer   :: export_slice = 0
 
-  type fld_list_type
+  type FieldListType
     character(len=64) :: stdname
     character(len=64) :: shortname
     character(len=64) :: transferOfferGeom
     character(len=64) :: transferOfferField
     logical           :: assoc    ! is the farrayPtr associated with internal data
+    real(ESMF_KIND_R8), dimension(:,:),   pointer :: farrayPtr2D
     real(ESMF_KIND_R8), dimension(:,:,:), pointer :: farrayPtr
-  end type fld_list_type
+  end type FieldListType
 
   integer :: fldsToRRTMG_num = 0
   integer :: fldsFrRRTMG_num = 6
@@ -775,6 +776,7 @@ module rrtmg_cap
     
 
     rc = ESMF_SUCCESS
+    call ESMF_LogWrite("InitializeRealize -- ", ESMF_LOGMSG_INFO)
 
     ! As a radiation component, check no grid is provided by radiation component
     ! First examine import State
@@ -867,6 +869,7 @@ module rrtmg_cap
     integer              :: lsize
     
     rc = ESMF_SUCCESS
+    call ESMF_LogWrite("InitializeAcceptGrid -- ", ESMF_LOGMSG_INFO)
 
 #ifdef USE_GRID
     call AcceptGrid(importState, rc)
@@ -1141,6 +1144,7 @@ module rrtmg_cap
 
     rc = ESMF_SUCCESS
 
+    call ESMF_LogWrite("InitializeCompleteField -- ", ESMF_LOGMSG_INFO)
 #ifdef USE_GRID
     call CompleteFieldGrid(importState, writeGrid=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1183,6 +1187,14 @@ module rrtmg_cap
     character(64), allocatable             :: itemNameList(:)
     type(ESMF_StateItem_Flag), allocatable :: typeList(:)
     logical                                :: l_writeGrid = .false.
+    type(FieldListType)                    :: fieldList(6)
+
+    fieldList(1)%farrayPtr2D => swuflx
+    fieldList(2)%farrayPtr2D => swdflx
+    fieldList(3)%farrayPtr2D => swhr
+    fieldList(4)%farrayPtr2D => swuflxc
+    fieldList(5)%farrayPtr2D => swdflxc
+    fieldList(6)%farrayPtr2D => swhrc
 
     call ESMF_StateGet(state, itemCount=icount, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1222,7 +1234,7 @@ module rrtmg_cap
             return  ! bail out
         else
           ! the transferred Grid is already set, allocate memory for data by complete
-          call ESMF_FieldEmptyComplete(field, typekind=ESMF_TYPEKIND_R8, rc=rc)
+          call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
@@ -1531,6 +1543,14 @@ module rrtmg_cap
     character(64), allocatable             :: itemNameList(:)
     type(ESMF_StateItem_Flag), allocatable :: typeList(:)
     logical                                :: l_writeMesh = .false.
+    type(FieldListType)                    :: fieldList(6)
+
+    fieldList(1)%farrayPtr2D => swuflx
+    fieldList(2)%farrayPtr2D => swdflx
+    fieldList(3)%farrayPtr2D => swhr
+    fieldList(4)%farrayPtr2D => swuflxc
+    fieldList(5)%farrayPtr2D => swdflxc
+    fieldList(6)%farrayPtr2D => swhrc
 
     call ESMF_StateGet(state, itemCount=icount, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1570,7 +1590,7 @@ module rrtmg_cap
             return  ! bail out
         else
           ! the transferred Mesh is already set, allocate memory for data by complete
-          call ESMF_FieldEmptyComplete(field, typekind=ESMF_TYPEKIND_R8, rc=rc)
+          call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &

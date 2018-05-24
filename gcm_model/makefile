@@ -15,13 +15,13 @@ ESMF_INC        = $(ESMF_F90COMPILEPATHS)
 ESMF_LIB        = $(ESMF_F90LINKPATHS) $(ESMF_F90LINKRPATHS) $(ESMF_F90ESMFLINKLIBS)
 
 VERSION=4.0.2
-FC=gfortran
+FC=$(ESMF_F90COMPILER)
 MODULES_DIR=modules
 SRC_DIR=src
 OBJ_DIR=obj
 MOD_DIR=mod
 
-ifeq ($(FC), mpiifort)
+ifeq ($(FC), $(filter $(FC), mpiifort, ftn))
 INCLUDE=-I. -Imod -I$(NETCDF)/include
 LIB=-L$(NETCDF)/lib -lnetcdf
 ifeq ($(BUILD),debug)
@@ -74,7 +74,7 @@ install: $(LIBRARY)
 	-cp -f rrtmg_sw.mk.install $(INSTALLDIR)/rrtmg_sw.mk
 
 clean:
-	rm -rf *.o *.so *.mod obj/*.o mod/*.mod install/*
+	rm -rf *.o *.so *.a *.install *.mod obj/*.o mod/*.mod install/*
 
 .PHONY: install clean
 

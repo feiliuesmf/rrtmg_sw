@@ -23,6 +23,7 @@ Description:
   Mesh from ATM and builds the 6 export Fields. 
 
   Initial Mesh in ATM is created from a 2.5 degree gridfile at:
+  cd data
   wget --no-check-certificate https://raw.githubusercontent.com/feiliuesmf/esmftest/master/xgrid/test1/ll2.5deg_grid.nc
 
 Build:

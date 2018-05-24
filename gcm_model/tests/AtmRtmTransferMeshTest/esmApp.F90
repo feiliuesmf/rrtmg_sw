@@ -23,6 +23,7 @@ program esmApp
   type(ESMF_GridComp)     :: esmComp
   
   ! Initialize ESMF
+  !call ESMF_Initialize(logkindflag=ESMF_LOGKIND_MULTI_ON_ERROR, &
   call ESMF_Initialize(logkindflag=ESMF_LOGKIND_MULTI, &
     defaultCalkind=ESMF_CALKIND_GREGORIAN, rc=rc)
   if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
