@@ -223,12 +223,10 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
 
-    pet_atm=2
-    pet_ocn=2
-    pet_ice=2
-!    pet_rtm=2
+    pet_atm=4
+    pet_rtm=4
 
-    if(lPet.eq.0) print *,'pet_atm,ocn,ice,tot=',pet_atm, pet_ocn,pet_ice,petCount
+    if(lPet.eq.0) print *,'pet_atm, rtm,tot=',pet_atm, pet_rtm, petCount
 
     ! SetServices for ATM
 !    allocate(petList(petCount/2-1))
@@ -271,10 +269,10 @@ module ESM
       return  ! bail out
 !--
       
-!   rtm shares the same pets with atm
-    allocate(petList(pet_atm))
-    do i=1, pet_atm
-      petList(i) = i-1 ! PET labeling goes from 0 to petCount-1
+    ! RTM pets
+    allocate(petList(pet_rtm))
+    do i=1, pet_rtm
+      petList(i) = pet_atm+i-1 ! PET labeling goes from 0 to petCount-1
     enddo
 
     call NUOPC_DriverAddComp(driver, "RTM", rtmSS, petList=petList, &

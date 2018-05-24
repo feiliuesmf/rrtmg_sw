@@ -23,6 +23,7 @@ Description:
   Mesh from ATM and builds the 6 export Fields. 
 
   Initial Mesh in ATM is created from a 2.5 degree gridfile at:
+  cd data
   wget --no-check-certificate https://raw.githubusercontent.com/feiliuesmf/esmftest/master/xgrid/test1/ll2.5deg_grid.nc
 
 Build:
@@ -32,7 +33,7 @@ Build:
   
 Execution:
   - Optionally set environment variable ESMF_RUNTIME_COMPLIANCECHECK to ON.
-  - mpirun -np 2 ./esmApp
+  - mpirun -np 8 ./esmApp
   
 Output:
   - PET*.Log files containing compliance checker output if turned on.
