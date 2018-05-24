@@ -33,7 +33,7 @@ Build:
   
 Execution:
   - Optionally set environment variable ESMF_RUNTIME_COMPLIANCECHECK to ON.
-  - mpirun -np 2 ./esmApp
+  - mpirun -np 8 ./esmApp
   
 Output:
   - PET*.Log files containing compliance checker output if turned on.
