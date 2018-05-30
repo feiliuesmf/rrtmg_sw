@@ -134,8 +134,8 @@ module rrtmg_cap
     character(len=64) :: transferOfferGeom
     character(len=64) :: transferOfferField
     logical           :: assoc    ! is the farrayPtr associated with internal data
-    real(ESMF_KIND_R8), dimension(:,:),   pointer :: farrayPtr2D
-    real(ESMF_KIND_R8), dimension(:,:,:), pointer :: farrayPtr
+    real(ESMF_KIND_R8), dimension(:,:),   pointer :: farrayPtr2D => null()
+    real(ESMF_KIND_R8), dimension(:,:,:), pointer :: farrayPtr => null()
   end type FieldListType
 
   integer :: fldsToRRTMG_num = 0
@@ -1083,6 +1083,8 @@ module rrtmg_cap
       character(64), allocatable             :: itemNameList(:)
       type(ESMF_StateItem_Flag), allocatable :: typeList(:)
       logical                                :: foundMesh = .false.
+      integer                                :: noe, mipde(1,4), ecpde(4)
+      type(ESMF_DistGrid)                    :: ndg, edg
 
       call ESMF_StateGet(state, itemCount=icount, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1113,6 +1115,21 @@ module rrtmg_cap
             file=__FILE__)) &
             return  ! bail out
           call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          call ESMF_MeshGet(mesh, nodalDistGrid=ndg, elementDistGrid=edg, numOwnedElements=noe, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          call ESMF_DistGridGet(ndg, maxIndexPDe=mipde, elementCountPDe=ecpde, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          call ESMF_DistGridGet(edg, maxIndexPDe=mipde, elementCountPDe=ecpde, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
@@ -1540,9 +1557,6 @@ module rrtmg_cap
     ! local variables
     type(ESMF_Field)              :: field
     type(ESMF_Mesh)               :: mesh
-    type(ESMF_Array)              :: array
-    character(80)                 :: name
-    character(160)                :: msgString
     type(ESMF_FieldStatus_Flag)   :: fieldStatus
 
     integer                                :: i, icount
@@ -1596,8 +1610,24 @@ module rrtmg_cap
             return  ! bail out
         else
           ! the transferred Mesh is already set, allocate memory for data by complete
-          print *, ubound(fieldList(i)%farrayPtr2D, 1), ubound(fieldList(i)%farrayPtr2D, 2)
-          call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
+          !print *, ubound(fieldList(i)%farrayPtr2D, 1), ubound(fieldList(i)%farrayPtr2D, 2)
+          !call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+
+          call ESMF_FieldGet(field, mesh=mesh, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          field = ESMF_FieldCreate(mesh, farrayPtr=swuflx, meshloc=ESMF_MESHLOC_ELEMENT, name=exportFieldList(i), rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          call NUOPC_Realize(State, field, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
