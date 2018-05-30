@@ -6,11 +6,11 @@
 runSeq::
     @*              
       RTM
-      RTM -> ATM      :remapMethod=redist
+      RTM -> ATM :remapMethod=redist
       @*
         ATM
       @
-      ATM -> RTM      :remapMethod=redist
+      ATM -> RTM :remapMethod=redist
     @
 ::
 

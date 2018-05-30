@@ -1114,27 +1114,27 @@ module rrtmg_cap
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
-          call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-          call ESMF_MeshGet(mesh, nodalDistGrid=ndg, elementDistGrid=edg, numOwnedElements=noe, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-          call ESMF_DistGridGet(ndg, maxIndexPDe=mipde, elementCountPDe=ecpde, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-          call ESMF_DistGridGet(edg, maxIndexPDe=mipde, elementCountPDe=ecpde, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-            ! swap out the transferred grid for the newly created one
+          !call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !call ESMF_MeshGet(mesh, nodalDistGrid=ndg, elementDistGrid=edg, numOwnedElements=noe, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !call ESMF_DistGridGet(ndg, maxIndexPDe=mipde, elementCountPDe=ecpde, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !call ESMF_DistGridGet(edg, maxIndexPDe=mipde, elementCountPDe=ecpde, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !  ! swap out the transferred grid for the newly created one
           call ESMF_LogWrite("RRTMG - Just set Mesh for Field"//trim(itemNameList(i)), &
             ESMF_LOGMSG_INFO, rc=rc)
           foundMesh = .true.
@@ -1610,28 +1610,38 @@ module rrtmg_cap
             return  ! bail out
         else
           ! the transferred Mesh is already set, allocate memory for data by complete
-          !print *, ubound(fieldList(i)%farrayPtr2D, 1), ubound(fieldList(i)%farrayPtr2D, 2)
-          !call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
-          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          !  line=__LINE__, &
-          !  file=__FILE__)) &
-          !  return  ! bail out
-
+          print *, ubound(fieldList(i)%farrayPtr2D, 1), ubound(fieldList(i)%farrayPtr2D, 2)
           call ESMF_FieldGet(field, mesh=mesh, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
-          field = ESMF_FieldCreate(mesh, farrayPtr=swuflx, meshloc=ESMF_MESHLOC_ELEMENT, name=exportFieldList(i), rc=rc)
+          call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
-          call NUOPC_Realize(State, field, rc=rc)
+          call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
+
+          !call ESMF_FieldGet(field, mesh=mesh, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !field = ESMF_FieldCreate(mesh, farrayPtr=swuflx, meshloc=ESMF_MESHLOC_ELEMENT, name=exportFieldList(i), rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !call NUOPC_Realize(State, field, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
           ! log a message
           call ESMF_LogWrite("RRTMG - Just completed the Field", &
             ESMF_LOGMSG_INFO, rc=rc)

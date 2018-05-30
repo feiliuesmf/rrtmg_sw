@@ -19,6 +19,7 @@ module ESM
   use NUOPC_Driver, &
     driver_routine_SS             => SetServices, &
     driver_label_SetModelServices => label_SetModelServices, &
+    driver_label_ModifyCplLists   => label_ModifyCplLists, &
     driver_label_SetRunSequence   => label_SetRunSequence
   
   use ATM, only: atmSS => SetServices
@@ -63,6 +64,12 @@ module ESM
       return  ! bail out
     call NUOPC_CompSpecialize(driver, specLabel=driver_label_SetRunSequence, &
       specRoutine=SetRunSequence, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    call NUOPC_CompSpecialize(driver, specLabel=driver_label_ModifyCplLists, &
+      specRoutine=ModifyCplLists, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -442,6 +449,77 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
 
+  end subroutine
+
+  !-----------------------------------------------------------------------------
+
+  subroutine ModifyCplLists(driver, rc)
+    type(ESMF_GridComp)  :: driver
+    integer, intent(out) :: rc
+    
+    ! local variables
+    character(len=160)              :: msg    
+    type(ESMF_CplComp), pointer     :: connectorList(:)
+    integer                         :: i, j, cplListSize
+    character(len=160), allocatable :: cplList(:)
+    character(len=160)              :: tempString
+    
+    rc = ESMF_SUCCESS
+    
+    call ESMF_LogWrite("Driver is in ModifyCplLists()", ESMF_LOGMSG_INFO, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    
+    nullify(connectorList)
+    call NUOPC_DriverGetComp(driver, compList=connectorList, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    
+    write (msg,*) "Found ", size(connectorList), " Connectors."// &
+      " Modifying CplList Attribute...."
+    call ESMF_LogWrite(trim(msg), ESMF_LOGMSG_INFO, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+      
+    do i=1, size(connectorList)
+      ! query the cplList for connector i
+      call NUOPC_CompAttributeGet(connectorList(i), name="CplList", &
+        itemCount=cplListSize, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+      if (cplListSize>0) then
+        allocate(cplList(cplListSize))
+        call NUOPC_CompAttributeGet(connectorList(i), name="CplList", &
+          valueList=cplList, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        ! go through all of the entries in the cplList
+        do j=1, cplListSize
+          cplList(j) = trim(cplList(j))//":REMAPMETHOD=redist"
+        enddo
+        ! store the modified cplList in CplList attribute of connector i
+        call NUOPC_CompAttributeSet(connectorList(i), &
+          name="CplList", valueList=cplList, rc=rc)
+        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          line=__LINE__, &
+          file=__FILE__)) &
+          return  ! bail out
+        deallocate(cplList)
+      endif
+    enddo
+      
+    deallocate(connectorList)
+    
   end subroutine
 
   !-----------------------------------------------------------------------------

@@ -47,3 +47,16 @@ Code structure:
                   ATM, OCN, and MEDm; Set custom RunSequence with two 
                   timescales: slow interaction w/ OCN & fast interaction w/ ATM.
   - esmApp.F90  - ESM application.
+
+Run Script:
+
+git clone https://github.com/feiliuesmf/rrtmg_sw
+cd rrtmg_sw/gcm_model
+gmake install
+cd tests/AtmRtmTransferMeshTest
+gmake
+mkdir data
+cd data
+wget --no-check-certificate https://raw.githubusercontent.com/feiliuesmf/esmftest/master/xgrid/test1/ll2.5deg_grid.nc
+cd ..
+mpirun -np 8 ./esmApp
