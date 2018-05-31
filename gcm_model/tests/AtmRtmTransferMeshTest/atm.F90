@@ -165,7 +165,7 @@ module ATM
 
     do i = 1, 6
       field = ESMF_FieldCreate(name=importFieldList(i), mesh=mesh, &
-        typekind=ESMF_TYPEKIND_R8, rc=rc)
+        meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
