@@ -28,21 +28,20 @@ module rrtmg_cap
   private
   public SetServices
 
-  character(len=45)      :: exportFieldList(6) = (/ &
-    "Total Sky Shortwave Upward Flux             ", &
+  character(len=45)     :: exportFieldList(6) = (/ &
     "Total Sky Shortward Downard Flux            ", &
     "Total Sky Shortward Radiative Heating Rate  ", &
-    "Clear Sky Shortwave Upward Flux             ", &
+    "Total Sky Shortwave Upward Flux             ", &
     "Clear Sky Shortwave Downward Flux           ", &
-    "Clear Sky Shortwave Radiative Heating Rate  " /) 
-
+    "Clear Sky Shortwave Radiative Heating Rate  ", &
+    "Clear Sky Shortwave Upward Flux             " /)
   character(len=8)      :: exportFieldSN(6) = (/ &
-    "tssuf   ", &
     "tssdf   ", &
     "tssrhr  ", &
-    "cssuf   ", &
+    "tssuf   ", &
     "cssdf   ", &
-    "cssrhr  " /) 
+    "cssrhr  ", &
+    "cssuf   " /)
 
   character(len=55)      :: importFieldList(39) = (/ &
   "Layer pressures (hPa, mb)                             ",&
@@ -204,6 +203,7 @@ module rrtmg_cap
   real(kind=rb), pointer :: swdflxc(:,:)      ! Clear sky shortwave downward flux (W/m2)
                                                   !    Dimensions: (ncol,nlay+1)
   real(kind=rb), pointer :: swhrc(:,:)        ! Clear sky shortwave radiative heating rate (K/d)
+                                                  !    Dimensions: (ncol,nlay)
 
   contains
   !-----------------------------------------------------------------------
@@ -867,6 +867,7 @@ module rrtmg_cap
     type(ESMF_Mesh)      :: Mesh
     type(ESMF_DistGrid)  :: distGrid
     integer              :: lsize
+    integer, allocatable              :: seqIndexList(:)
     
     rc = ESMF_SUCCESS
     call ESMF_LogWrite("InitializeAcceptGrid -- ", ESMF_LOGMSG_INFO)
@@ -907,6 +908,15 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+
+    allocate(seqIndexList(lsize))
+    call ESMF_DistgridGet(distgrid, localDe=0, seqIndexList=seqIndexList, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    !write (*, *) seqIndexList
+    deallocate(seqIndexList)
 
     ncol = lsize
     write (*, *) 'ncol = ', ncol
@@ -1565,12 +1575,13 @@ module rrtmg_cap
     logical                                :: l_writeMesh = .false.
     type(FieldListType)                    :: fieldList(6)
 
-    fieldList(1)%farrayPtr2D => swuflx
-    fieldList(2)%farrayPtr2D => swdflx
-    fieldList(3)%farrayPtr2D => swhr
-    fieldList(4)%farrayPtr2D => swuflxc
-    fieldList(5)%farrayPtr2D => swdflxc
-    fieldList(6)%farrayPtr2D => swhrc
+    ! Names are in alphabetical order
+    fieldList(1)%farrayPtr2D => swdflx
+    fieldList(2)%farrayPtr2D => swhr
+    fieldList(3)%farrayPtr2D => swuflx
+    fieldList(4)%farrayPtr2D => swdflxc
+    fieldList(5)%farrayPtr2D => swhrc
+    fieldList(6)%farrayPtr2D => swuflxc
 
     call ESMF_StateGet(state, itemCount=icount, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &

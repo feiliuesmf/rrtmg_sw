@@ -30,20 +30,21 @@ module ATM
   INTEGER :: lPet
   integer :: importSlice = 0
 
-  character(len=45)      :: importFieldList(6) = (/ &
-    "Total Sky Shortwave Upward Flux             ", &
+  ! Field Entries are in alphabetical order
+  character(len=45)     :: importFieldList(6) = (/ &
     "Total Sky Shortward Downard Flux            ", &
     "Total Sky Shortward Radiative Heating Rate  ", &
-    "Clear Sky Shortwave Upward Flux             ", &
+    "Total Sky Shortwave Upward Flux             ", &
     "Clear Sky Shortwave Downward Flux           ", &
-    "Clear Sky Shortwave Radiative Heating Rate  " /) 
+    "Clear Sky Shortwave Radiative Heating Rate  ", &
+    "Clear Sky Shortwave Upward Flux             " /)
   character(len=8)      :: importFieldSN(6) = (/ &
-    "tssuf   ", &
     "tssdf   ", &
     "tssrhr  ", &
-    "cssuf   ", &
+    "tssuf   ", &
     "cssdf   ", &
-    "cssrhr  " /) 
+    "cssrhr  ", &
+    "cssuf   " /)
   
   !-----------------------------------------------------------------------------
   contains
@@ -153,6 +154,8 @@ module ATM
     type(ESMF_Field)        :: field
     type(ESMF_Mesh)         :: mesh
     integer                 :: i
+    ! Field Entries are in alphabetical order
+    integer                 :: nz(6)=(/51,50,51,51,50,51/)
     
     rc = ESMF_SUCCESS
     
@@ -164,8 +167,11 @@ module ATM
       return  ! bail out
 
     do i = 1, 6
+      ! Vertical levels are hardcoded on the ATM side
       field = ESMF_FieldCreate(name=importFieldList(i), mesh=mesh, &
-        meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, rc=rc)
+        meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, &
+        ungriddedLBound=(/1/), ungriddedUBound=(/nz(i)/), & 
+        rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
