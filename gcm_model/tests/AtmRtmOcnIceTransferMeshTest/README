@@ -1,0 +1,66 @@
+README for ATM-RTM with petList NUOPC prototype and two time scales
+NUOPC prototype
+-----------------------------------------------------------------------
+
+Show how a Driver can setup a run sequence with two time scales
+
+
+Description:
+
+  A two-way coupled system with a single driver (ESM), four model components
+  (ATM, RTM, OCN, ICE)
+  
+  The ESM driver uses explicitly constructed petLists when adding the ATM, RTM, OCN, ICE
+
+  The ESM driver constructs a custom run sequence with two time scales to
+  implement coupling between ATM, RTM, OCN, ICE
+  
+  The connector components are explicitly added by the driver.
+  
+  ATM, RTM, OCN, ICE consisting of advertise and realize.
+
+  The RTM component is from ../../install/rrtmg.mk makefile segment. The RTM component accepts 
+  Mesh from ATM and builds the 6 export Fields. The 6 export Fields are transferred to ATM
+  through redistribution using default NUOPC connector. The run sequence of ATM and RTM
+  are specified in esmApp.runconfig
+
+  Initial Mesh in ATM is created from a 2.5 degree gridfile at:
+  cd data
+  wget --no-check-certificate https://raw.githubusercontent.com/feiliuesmf/esmftest/master/xgrid/test1/ll2.5deg_grid.nc
+
+Build:
+  - Set environment variable ESMFMKFILE to point to the esmf.mk of your ESMF
+    installation.
+  - gmake
+  
+Execution:
+  - Optionally set environment variable ESMF_RUNTIME_COMPLIANCECHECK to ON.
+  - mpirun -np 8 ./esmApp
+  
+Output:
+  - PET*.Log files containing compliance checker output if turned on.
+  - The prototype outputs time stepping information to stdout.
+
+Code structure:
+  - Makefile    - Makefile that is based on the standard esmf.mk mechanism.
+  - atm.F90     - The ATM component, specializing generic NUOPC_Model.
+  - ocn.F90     - The OCN component, specializing generic NUOPC_Model.
+  - ice.F90     - The ICE component, specializing generic NUOPC_Model.
+  - esm.F90     - The Earth System Model (ESM) component, specializing generic
+                  NUOPC_Driver. Define partial petLists for
+                  ATM, RTM, OCN, ICE, and MED; Set custom RunSequence with two 
+                  timescales: slow interaction w/ RTM & fast interaction w/ ATM.
+  - esmApp.F90  - ESM application.
+
+Run Script:
+
+git clone https://github.com/feiliuesmf/rrtmg_sw
+cd rrtmg_sw/gcm_model
+gmake install
+cd tests/AtmRtmOcnIceTransferMeshTest
+gmake
+mkdir data
+cd data
+wget --no-check-certificate https://raw.githubusercontent.com/feiliuesmf/esmftest/master/xgrid/test1/ll2.5deg_grid.nc
+cd ..
+mpirun -np 8 ./esmApp
