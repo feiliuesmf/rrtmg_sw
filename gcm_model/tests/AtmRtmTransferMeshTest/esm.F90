@@ -24,7 +24,6 @@ module ESM
   
   use ATM, only: atmSS => SetServices
   use rrtmg_cap, only: rtmSS => SetServices
-  
   USE NUOPC_Connector, only: cplSS => SetServices
   
   implicit none
@@ -178,14 +177,12 @@ module ESM
     integer, allocatable          :: petList(:)
     type(ESMF_GridComp)           :: child
 
-!==
     type(ESMF_Config)             :: config
     type(NUOPC_FreeFormat)        :: attrFF
     integer                       :: pet_atm,pet_ocn,pet_ice,pet_rtm
-!--
+
     rc = ESMF_SUCCESS
 
-!==
     ! read free format driver attributes
     call ESMF_GridCompGet(driver, config=config, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -210,7 +207,6 @@ module ESM
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-!--
     
     ! get the petCount
     call ESMF_GridCompGet(driver, petCount=petCount, rc=rc)
@@ -236,8 +232,6 @@ module ESM
     if(lPet.eq.0) print *,'pet_atm, rtm,tot=',pet_atm, pet_rtm, petCount
 
     ! SetServices for ATM
-!    allocate(petList(petCount/2-1))
-!    do i=1, petCount/2-1
     allocate(petList(pet_atm))
     do i=1, pet_atm
       petList(i) = i-1 ! PET labeling goes from 0 to petCount-1
@@ -254,7 +248,7 @@ module ESM
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-!--
+
     ! read ATM attributes from config file into FreeFormat
     attrFF = NUOPC_FreeFormatCreate(config, label="atmAttributes::", &
       relaxedflag=.true., rc=rc)
@@ -274,7 +268,6 @@ module ESM
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-!--
       
     ! RTM pets
     allocate(petList(pet_rtm))
@@ -295,7 +288,6 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
 
-!===
     ! read RTM attributes from config file into FreeFormat
     attrFF = NUOPC_FreeFormatCreate(config, label="rtmAttributes::", &
       relaxedflag=.true., rc=rc)
@@ -315,7 +307,6 @@ module ESM
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
-!----
 
     ! SetServices for rtm2atm
     call NUOPC_DriverAddComp(driver, srcCompLabel="RTM", dstCompLabel="ATM", &
@@ -391,9 +382,8 @@ module ESM
     type(ESMF_TimeInterval)             :: timeStep
     type(ESMF_Clock)                    :: internalClock
 
-!==
     type(ESMF_Config)                   :: config
-!--
+
     rc = ESMF_SUCCESS
     
     ! query the driver for its name
@@ -408,7 +398,6 @@ module ESM
     runSeqFF = NUOPC_FreeFormatCreate(config, label="runSeq::", rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, file=trim(name)//":"//__FILE__)) return  ! bail out
-!--
 
     ! ingest FreeFormat run sequence
     call NUOPC_DriverIngestRunSequence(driver, runSeqFF, &

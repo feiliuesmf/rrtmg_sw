@@ -5,7 +5,7 @@
 !
 ! 3/22/18
 ! This is now acting as a cap/connector between NUOPC driver and RRTMG code.
-! As a radiation cap, Fields are created on the Grid transferred over from ATM.
+! As a radiation cap, Fields are created on the Mesh transferred over from ATM.
 !
 
 #define USE_MESH
@@ -891,6 +891,7 @@ module rrtmg_cap
     !  line=__LINE__, &
     !  file=__FILE__)) &
     !  return  ! bail out
+    ! Accept the ATM Mesh
     Mesh=AcceptMesh(exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -919,7 +920,6 @@ module rrtmg_cap
     deallocate(seqIndexList)
 
     ncol = lsize
-    write (*, *) 'ncol = ', ncol
 #endif
 
     call RRTMG_SW_INI(cpdair)
@@ -1190,6 +1190,7 @@ module rrtmg_cap
       return  ! bail out
 #endif
 #ifdef USE_MESH
+    ! Complete the export Fields on the ATM Mesh
     call CompleteFieldMesh(exportState, writeMesh=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &

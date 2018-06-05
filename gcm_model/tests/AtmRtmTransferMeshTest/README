@@ -20,7 +20,9 @@ Description:
   ATM, RTM consisting of advertise and realize.
 
   The RTM component is from ../../install/rrtmg.mk makefile segment. The RTM component accepts 
-  Mesh from ATM and builds the 6 export Fields. 
+  Mesh from ATM and builds the 6 export Fields. The 6 export Fields are transferred to ATM
+  through redistribution using default NUOPC connector. The run sequence of ATM and RTM
+  are specified in esmApp.runconfig
 
   Initial Mesh in ATM is created from a 2.5 degree gridfile at:
   cd data
