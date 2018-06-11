@@ -195,7 +195,7 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
     ! ingest FreeFormat driver attributes
-    call NUOPC_CompAttributeIngest(driver, attrFF, rc=rc)
+    call NUOPC_CompAttributeIngest(driver, attrFF, addFlag=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -257,7 +257,7 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
     ! ingest FreeFormat atm attributes
-    call NUOPC_CompAttributeIngest(child, attrFF, rc=rc)
+    call NUOPC_CompAttributeIngest(child, attrFF, addFlag=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &
@@ -296,7 +296,7 @@ module ESM
       file=__FILE__)) &
       return  ! bail out
     ! ingest FreeFormat rtm attributes
-    call NUOPC_CompAttributeIngest(child, attrFF, rc=rc)
+    call NUOPC_CompAttributeIngest(child, attrFF, addFlag=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
       file=__FILE__)) &

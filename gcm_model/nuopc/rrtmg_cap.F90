@@ -327,6 +327,7 @@ module rrtmg_cap
     integer                                :: mpi_comm
 
     rc = ESMF_SUCCESS
+    call ESMF_LogWrite("RTM calling InitializeAdvertise -- ", ESMF_LOGMSG_INFO)
 
     call ESMF_VMGetCurrent(vm, rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -776,7 +777,7 @@ module rrtmg_cap
     
 
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite("InitializeRealize -- ", ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite("RTM calling InitializeRealize -- ", ESMF_LOGMSG_INFO)
 
     ! As a radiation component, check no grid is provided by radiation component
     ! First examine import State
@@ -867,10 +868,45 @@ module rrtmg_cap
     type(ESMF_Mesh)      :: Mesh
     type(ESMF_DistGrid)  :: distGrid
     integer              :: lsize
-    integer, allocatable              :: seqIndexList(:)
+    integer, allocatable :: seqIndexList(:)
+    logical              :: isPresent
+    integer              :: atm_layers
+    character(len=10)    :: value
     
     rc = ESMF_SUCCESS
-    call ESMF_LogWrite("InitializeAcceptGrid -- ", ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite("RTM calling InitializeAcceptGrid -- ", ESMF_LOGMSG_INFO)
+
+    call ESMF_AttributeGet(model, name="atm_layers", isPresent=isPresent, &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    if(.not. isPresent ) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="RRTMG cannot determine the number of vertical atmosphere layers. " // &
+            "This needs to be set as atm_layers attribute in the run sequence " // &
+            "configuration file with addFlag set to true when ingesting the RTM attributes.", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return
+    endif
+
+    call ESMF_AttributeGet(model, name="atm_layers", value=value, defaultValue="50", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    atm_layers = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    nlay = atm_layers
 
 #ifdef USE_GRID
     call AcceptGrid(importState, rc)
@@ -1176,7 +1212,7 @@ module rrtmg_cap
 
     rc = ESMF_SUCCESS
 
-    call ESMF_LogWrite("InitializeCompleteField -- ", ESMF_LOGMSG_INFO)
+    call ESMF_LogWrite("RTM calling InitializeCompleteField -- ", ESMF_LOGMSG_INFO)
 #ifdef USE_GRID
     call CompleteFieldGrid(importState, writeGrid=.true., rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -1699,6 +1735,7 @@ module rrtmg_cap
     integer, intent(out) :: rc
 
     rc = ESMF_SUCCESS
+    call ESMF_LogWrite("RTM calling DataInitialize -- ", ESMF_LOGMSG_INFO)
 
     ! indicate that data initialization is complete (breaking out of init-loop)
     call NUOPC_CompAttributeSet(model, &
