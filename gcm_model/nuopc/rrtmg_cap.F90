@@ -390,8 +390,8 @@ module rrtmg_cap
   
   !-----------------------------------------------------------------------------
 
-  subroutine ModelAdvance(gcomp, rc)
-    type(ESMF_GridComp)                    :: gcomp
+  subroutine ModelAdvance(model, rc)
+    type(ESMF_GridComp)                    :: model
     integer, intent(out)                   :: rc
     
     ! local variables
@@ -401,23 +401,157 @@ module rrtmg_cap
     type(ESMF_Time)                        :: currTime
     type(ESMF_TimeInterval)                :: timeStep
 
+    logical                                :: isPresent
+    character(len=10)                      :: value
+    character(len=ESMF_MAXSTR)             :: msg
+
     rc = ESMF_SUCCESS
 
     import_slice = import_slice + 1
     export_slice = export_slice + 1
 
+    ! Query Day of year every time step, must be provided
+    call ESMF_AttributeGet(model, name="dayofyear", isPresent=isPresent, &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    if(.not. isPresent ) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="RRTMG cannot determine the day of year: dayofyear " // &
+            "This needs to be set as dayofyear attribute in the run sequence " // &
+            "configuration file with addFlag set to true when ingesting the RTM attributes.", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return
+    endif
+
+    call ESMF_AttributeGet(model, name="dayofyear", value=value, defaultValue="0", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    dyofyr = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute dayofyear (no default, must be set) = ", dyofyr
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query Day of Earth Sun Distance Adjustment default to 1.0
+    !call ESMF_AttributeGet(model, name="adjes", value=value, defaultValue="1.0", &
+    call ESMF_AttributeGet(model, name="adjes", value=value, defaultValue="1", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    !adjes = ESMF_UtilString2Real(value, rc=rc)
+    adjes = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute EarthSun Distance Adjustment (default 1.0) = ", adjes
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query solar constant Adjustment default to 0.0 (internal solar constant)
+    !call ESMF_AttributeGet(model, name="scon", value=value, defaultValue="0.0", &
+    call ESMF_AttributeGet(model, name="scon", value=value, defaultValue="0", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    !scon = ESMF_UtilString2Real(value, rc=rc)
+    scon = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Solar Radiation Constant (default 0.0) = ", scon
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query solar variability method default to 0.0
+    !call ESMF_AttributeGet(model, name="isolvar", value=value, defaultValue="0.0", &
+    call ESMF_AttributeGet(model, name="isolvar", value=value, defaultValue="0", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    !isolvar = ESMF_UtilString2Real(value, rc=rc)
+    isolvar = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Solar Variability (default 0.0) = ", isolvar
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query flag for cloud optical properties, default to 1
+    call ESMF_AttributeGet(model, name="inflgsw", value=value, defaultValue="1", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    inflgsw = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Cloud Optical Properties (default 1) = ", inflgsw
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query flag for ice particle specification, default to 1
+    call ESMF_AttributeGet(model, name="iceflgsw", value=value, defaultValue="1", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    iceflgsw = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Ice Particle Specification (default 1) = ", iceflgsw
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query liquid droplet specification default to 1
+    call ESMF_AttributeGet(model, name="liqflgsw", value=value, defaultValue="1", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    liqflgsw = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Liquid Droplet Specification (default 1) = ", liqflgsw
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Prepare all input parameters
     !  integer(kind=im), intent(inout) :: icld         ! Cloud overlap method
     !                                                  !    0: Clear only
     !                                                  !    1: Random
     !                                                  !    2: Maximum/random
     !                                                  !    3: Maximum
-    icld = 0
+    !icld = 0 ! through attribute
     !  integer(kind=im), intent(inout) :: iaer         ! Aerosol option flag
     !                                                  !    0: No aerosol
     !                                                  !    6: ECMWF method
     !                                                  !    10:Input aerosol optical 
     !                                                  !       properties
-    iaer = 0
+    ! iaer = 0 ! through attribute
     !  real(kind=rb), intent(in) :: play(:,:)          ! Layer pressures (hPa, mb)
     !                                                  !    Dimensions: (ncol,nlay)
     p0 = 1013.25
@@ -525,9 +659,9 @@ module rrtmg_cap
 
     !  integer(kind=im), intent(in) :: dyofyr          ! Day of the year (used to get Earth/Sun
     !                                                  !  distance if adjflx not provided)
-    dyofyr = 180
+    !dyofyr = 180 ! through attribute
     !  real(kind=rb), intent(in) :: adjes              ! Flux adjustment for Earth/Sun distance
-    adjes = 1.
+    !adjes = 1. ! through attribute
     !  real(kind=rb), intent(in) :: coszen(:)          ! Cosine of solar zenith angle
     !                                                  !    Dimensions: (ncol)
     do i = 1, ncol
@@ -544,7 +678,7 @@ module rrtmg_cap
     !                                                  !    If scon > 0.0, the internal solar
     !                                                  !    constant will be scaled to the 
     !                                                  !    provided value of scon.
-    scon = 0.0
+    !scon = 0.0 ! through attribute
 
     !  integer(kind=im), intent(in) :: isolvar         ! Flag for solar variability method
     !                                                  !   -1 = (when scon .eq. 0.0): No solar variability
@@ -584,7 +718,7 @@ module rrtmg_cap
     !                                                  !        scaled to scon and solar variability defined
     !                                                  !        (optional) by setting non-zero scale factors
     !                                                  !        for each band in bndsolvar
-    isolvar = 0
+    !isolvar = 0 ! through attribute
 
     !  real(kind=rb), intent(in), optional :: indsolvar(:) ! Facular and sunspot amplitude 
     !                                                      ! scale factors (isolvar=1), or
@@ -604,11 +738,11 @@ module rrtmg_cap
     solcycfrac = 0.0
 
     !  integer(kind=im), intent(in) :: inflgsw         ! Flag for cloud optical properties
-    inflgsw = 1
+    !inflgsw = 1 ! through attribute
     !  integer(kind=im), intent(in) :: iceflgsw        ! Flag for ice particle specification
-    iceflgsw = 1
+    !iceflgsw = 1 ! through attribute
     !  integer(kind=im), intent(in) :: liqflgsw        ! Flag for liquid droplet specification
-    liqflgsw = 1
+    !liqflgsw = 1 ! through attribute
 
     !  real(kind=rb), intent(in) :: cldfmcl(:,:,:)     ! Cloud fraction
     !                                                  !    Dimensions: (ngptsw,ncol,nlay)
@@ -872,6 +1006,7 @@ module rrtmg_cap
     logical              :: isPresent
     integer              :: atm_layers
     character(len=10)    :: value
+    character(len=ESMF_MAXSTR)             :: msg
     
     rc = ESMF_SUCCESS
     call ESMF_LogWrite("RTM calling InitializeAcceptGrid -- ", ESMF_LOGMSG_INFO)
@@ -905,8 +1040,82 @@ module rrtmg_cap
       line=__LINE__, &
       file=__FILE__)) &
       return  ! bail out
+    write(msg, *) "Attribute atm_layers (no default must be set) = ", atm_layers
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
 
     nlay = atm_layers
+
+    call ESMF_AttributeGet(model, name="icld", isPresent=isPresent, &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    if(.not. isPresent ) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="RRTMG cannot determine the cloud overlap method: icld " // &
+    "    0: Clear only         "// &
+    "    1: Random             "// &
+    "    2: Maximum/random     "// &
+    "    3: Maximum            "// &
+            "This needs to be set as icld attribute in the run sequence " // &
+            "configuration file with addFlag set to true when ingesting the RTM attributes.", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return
+    endif
+
+    call ESMF_AttributeGet(model, name="icld", value=value, defaultValue="0", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    icld = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Cloud Overlap Method (no default must be set) = ", icld
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
+
+    ! Query aerosol option flag
+    call ESMF_AttributeGet(model, name="iaer", isPresent=isPresent, &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
+    if(.not. isPresent ) then
+      call ESMF_LogSetError(ESMF_RC_VAL_WRONG, &
+        msg="RRTMG cannot determine the aerosol option flag: iaer " // &
+    "    0: No aerosol              "// &
+    "    6: ECMWF method            "// &
+    "    10:Input aerosol optical properties              "// &
+            "This needs to be set as iaer attribute in the run sequence " // &
+            "configuration file with addFlag set to true when ingesting the RTM attributes.", &
+        line=__LINE__, &
+        file=__FILE__, &
+        rcToReturn=rc)
+      return
+    endif
+
+    call ESMF_AttributeGet(model, name="iaer", value=value, defaultValue="0", &
+      convention="NUOPC", purpose="Instance", rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    iaer = ESMF_UtilString2Int(value, rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    write(msg, *) "Attribute Aerosol Option Flag (no default must be set) = ", iaer
+    call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
 
 #ifdef USE_GRID
     call AcceptGrid(importState, rc)

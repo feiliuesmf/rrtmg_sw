@@ -26,4 +26,7 @@ rtmAttributes::
   Verbosity = 0
   Profiling = 0
   atm_layers = 50
+  icld = 0
+  iaer = 0
+  dayofyear = 180
 ::
