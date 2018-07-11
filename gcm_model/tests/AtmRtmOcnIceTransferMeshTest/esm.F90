@@ -24,6 +24,7 @@ module ESM
   
   use ATM, only: atmSS => SetServices
   use rrtmg_cap, only: rtmSS => SetServices
+  use rrtmg_cap, only: numFieldsToRRTMG, numFieldsFromRRTMG
   USE NUOPC_Connector, only: cplSS => SetServices
   
   implicit none
@@ -136,20 +137,75 @@ module ESM
       ! Fields from Ice to RTM
       subroutine LoadDictionary1(rc)
 
+
         integer, intent(out)   :: rc
 
         integer                ::  i
-        character(len=55)      :: FieldList(4) = (/ &
-          "UV/vis surface albedo direct rad                      ",&
-          "Near-IR surface albedo direct rad                     ",&
-          "UV/vis surface albedo: diffuse rad                    ",&
-          "Near-IR surface albedo: diffuse rad                   " /)
-        character(len=8)      :: FieldUnit(4) = (/ &
+        character(len=8)      :: FieldUnit(numFieldsToRRTMG) = (/ &
+          "Pa  ", &
+          "Pa  ", &
+          "K   ", &
+          "K   ", &
+          "K   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
+          "1   ", &
           "1   ", &
           "1   ", &
           "1   ", &
           "1   " /) 
-        do i = 1, 4
+        character(len=55)      :: importFieldList(numFieldsToRRTMG) = (/ &
+        "Layer pressures                                       ",&
+        "Interface pressures                                   ",&
+        "Layer temperatures                                    ",&
+        "Interface temperatures                                ",&
+        "Surface temperature                                   ",&
+        "H2O volume mixing ratio                               ",&
+        "O3 volume mixing ratio                                ",&
+        "CO2 volume mixing ratio                               ",&
+        "Methane volume mixing ratio                           ",&
+        "Nitrous oxide volume mixing ratio                     ",&
+        "Oxygen volume mixing ratio                            ",&
+        "UV/vis surface albedo direct rad                      ",&
+        "Near-IR surface albedo direct rad                     ",&
+        "UV/vis surface albedo: diffuse rad                    ",&
+        "Near-IR surface albedo: diffuse rad                   ",&
+        "Cosine of solar zenith angle                          ",&
+        "Facular and sunspot amplitude                         ",&
+        "Solar variability scale factors                       ",&
+        "Cloud fraction                                        ",&
+        "In-cloud optical depth                                ",&
+        "In-cloud single scattering albedo                     ",&
+        "In-cloud asymmetry parameter                          ",&
+        "In-cloud forward scattering fraction                  ",&
+        "In-cloud ice water path                               ",&
+        "In-cloud liquid water path                            ",&
+        "Cloud ice effective radius                            ",&
+        "Cloud water drop effective radius                     ",&
+        "Aerosol optical depth                                 ",&
+        "Aerosol single scattering albedo                      ",&
+        "Aerosol asymmetry parameter                           ",&
+        "Aerosol optical depth at 0.55 micron                  " /)
+        do i = 1, numFieldsToRRTMG
           call NUOPC_FieldDictionaryAddEntry(fieldList(i), fieldUnit(i), rc=rc);
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
