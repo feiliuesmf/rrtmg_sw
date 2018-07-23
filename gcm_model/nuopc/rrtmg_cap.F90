@@ -389,11 +389,11 @@ module rrtmg_cap
       file=__FILE__)) &
       return  ! bail out
 
-    call AdvertiseFields(importState, numFieldsToRRTMG, RRTMGImportFieldList, rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
+    !call AdvertiseFields(importState, numFieldsToRRTMG, RRTMGImportFieldList, rc)
+    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !  line=__LINE__, &
+    !  file=__FILE__)) &
+    !  return  ! bail out
     call AdvertiseFields(exportState, numFieldsFromRRTMG, RRTMGExportFieldList, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -1177,11 +1177,11 @@ module rrtmg_cap
     call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
 
     ! Accept the ATM Mesh
-    Mesh=AcceptMesh(importState, rc)
-    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-      line=__LINE__, &
-      file=__FILE__)) &
-      return  ! bail out
+    !Mesh=AcceptMesh(importState, rc)
+    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+    !  line=__LINE__, &
+    !  file=__FILE__)) &
+    !  return  ! bail out
     Mesh=AcceptMesh(exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -1560,6 +1560,19 @@ module rrtmg_cap
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
+
+          !field = ESMF_FieldCreate(mesh, farrayPtr=fieldList(i)%farrayPtr2D, &
+          !  name=itemNameList(i), rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+          !call NUOPC_Realize(State, field, rc=rc)
+          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+          !  line=__LINE__, &
+          !  file=__FILE__)) &
+          !  return  ! bail out
+
 
           !call ESMF_FieldGet(field, mesh=mesh, rc=rc)
           !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
