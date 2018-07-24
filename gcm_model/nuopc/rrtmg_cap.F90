@@ -1550,11 +1550,6 @@ module rrtmg_cap
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
-          call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
           call ESMF_FieldEmptyComplete(field, farrayPtr=fieldList(i)%farrayPtr2D, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
@@ -1562,7 +1557,7 @@ module rrtmg_cap
             return  ! bail out
 
           !field = ESMF_FieldCreate(mesh, farrayPtr=fieldList(i)%farrayPtr2D, &
-          !  name=itemNameList(i), rc=rc)
+          !  name=itemNameList(i), meshLoc=ESMF_MESHLOC_ELEMENT, rc=rc)
           !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           !  line=__LINE__, &
           !  file=__FILE__)) &
@@ -1573,22 +1568,6 @@ module rrtmg_cap
           !  file=__FILE__)) &
           !  return  ! bail out
 
-
-          !call ESMF_FieldGet(field, mesh=mesh, rc=rc)
-          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          !  line=__LINE__, &
-          !  file=__FILE__)) &
-          !  return  ! bail out
-          !field = ESMF_FieldCreate(mesh, farrayPtr=swuflx, meshloc=ESMF_MESHLOC_ELEMENT, name=RRTMGExportFieldList(i), rc=rc)
-          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          !  line=__LINE__, &
-          !  file=__FILE__)) &
-          !  return  ! bail out
-          !call NUOPC_Realize(State, field, rc=rc)
-          !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          !  line=__LINE__, &
-          !  file=__FILE__)) &
-          !  return  ! bail out
           ! log a message
           call ESMF_LogWrite("RRTMG - Just completed the Field", &
             ESMF_LOGMSG_INFO, rc=rc)
