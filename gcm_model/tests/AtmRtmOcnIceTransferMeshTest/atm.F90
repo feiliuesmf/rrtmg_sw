@@ -45,6 +45,20 @@ module ATM
     "cssdf   ", &
     "cssrhr  ", &
     "cssuf   " /)
+  character(len=55), parameter     :: exportFieldList(6) = (/ &
+  "Layer pressures                                       ",&
+  "Interface pressures                                   ",&
+  "Layer temperatures                                    ",&
+  "Interface temperatures                                ",&
+  "Surface temperature                                   ",&
+  "H2O volume mixing ratio                               " /)
+  character(len=8), parameter     :: exportFieldSN(6) = (/ &
+    "Pa      ", &
+    "Pa      ", &
+    "K       ", &
+    "K       ", &
+    "K       ", &
+    "1       " /)
   
   !-----------------------------------------------------------------------------
   contains
@@ -141,6 +155,16 @@ module ATM
       file=__FILE__)) &
       return  ! bail out
 
+    ! ATM can and will provide Mesh for the RTM component
+    call NUOPC_Advertise(importState, &
+      standardNames=exportFieldList, &
+      TransferOfferGeomObject="can provide", &
+      rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+
   end subroutine
   
   !-----------------------------------------------------------------------------
@@ -157,6 +181,7 @@ module ATM
     integer                 :: i
     ! Field Entries are in alphabetical order
     integer                 :: nz(6)=(/51,50,51,51,50,51/)
+    integer                 :: nz1(6)=(/50,51,50,51,1,50/)
     
     rc = ESMF_SUCCESS
     
@@ -184,6 +209,22 @@ module ATM
         return  ! bail out
     enddo
 
+    do i = 1, 6
+      ! Vertical levels are hardcoded on the ATM side
+      field = ESMF_FieldCreate(name=exportFieldList(i), mesh=mesh, &
+        meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, &
+        ungriddedLBound=(/1/), ungriddedUBound=(/nz1(i)/), & 
+        rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+      call NUOPC_Realize(exportState, field=field, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+    enddo
   end subroutine
 
   !-----------------------------------------------------------------------------

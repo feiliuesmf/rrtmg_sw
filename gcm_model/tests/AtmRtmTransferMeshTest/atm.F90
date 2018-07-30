@@ -45,18 +45,20 @@ module ATM
     "cssdf   ", &
     "cssrhr  ", &
     "cssuf   " /)
-  character(len=55)      :: exportFieldList(5) = (/ &
-  "Layer pressures (hPa, mb)                             ",&
-  "Interface pressures (hPa, mb)                         ",&
-  "Layer temperatures (K)                                ",&
-  "Interface temperatures (K)                            ",&
-  "Surface temperature (K)                               " /)
-  character(len=10)      :: exportFieldSN(5) = (/ &
-  "play      ", &
-  "plev      ", &
-  "tlay      ", &
-  "tlev      ", &
-  "tsfc      "  /)
+  character(len=55), parameter     :: exportFieldList(6) = (/ &
+  "Layer pressures                                       ",&
+  "Interface pressures                                   ",&
+  "Layer temperatures                                    ",&
+  "Interface temperatures                                ",&
+  "Surface temperature                                   ",&
+  "H2O volume mixing ratio                               " /)
+  character(len=8), parameter     :: exportFieldSN(6) = (/ &
+    "Pa      ", &
+    "Pa      ", &
+    "K       ", &
+    "K       ", &
+    "K       ", &
+    "1       " /)
   
   !-----------------------------------------------------------------------------
   contains
@@ -145,8 +147,18 @@ module ATM
     call ESMF_LogWrite("ATM calling InitializeP1 -- ", ESMF_LOGMSG_INFO)
     
     ! ATM can and will provide Mesh for the RTM component
+    ! Import
     call NUOPC_Advertise(importState, &
       standardNames=importFieldList, &
+      TransferOfferGeomObject="can provide", &
+      rc=rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
+    ! Export
+    call NUOPC_Advertise(exportState, &
+      standardNames=exportFieldList, &
       TransferOfferGeomObject="can provide", &
       rc=rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
@@ -171,7 +183,7 @@ module ATM
     character(len=10)       :: value
     ! Field Entries are in alphabetical order
     integer                 :: nz(6)=(/1,0,1,1,0,1/)
-    integer                 :: nz1(4)=(/0,1,0,1/)
+    integer                 :: nz1(6)=(/0,1,0,1,-1000,0/)
     
     rc = ESMF_SUCCESS
     call ESMF_LogWrite("ATM calling InitializeP2 -- ", ESMF_LOGMSG_INFO)
@@ -214,35 +226,29 @@ module ATM
         file=__FILE__)) &
         return  ! bail out
     enddo
-    !do i = 1, 4
-    !  ! Vertical levels are hardcoded on the ATM side
-    !  field = ESMF_FieldCreate(name=exportFieldList(i), mesh=mesh, &
-    !    meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, &
-    !    ungriddedLBound=(/1/), ungriddedUBound=(/nz1(i)/), & 
-    !    rc=rc)
-    !  if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !    line=__LINE__, &
-    !    file=__FILE__)) &
-    !    return  ! bail out
-    !  call NUOPC_Realize(exportState, field=field, rc=rc)
-    !  if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !    line=__LINE__, &
-    !    file=__FILE__)) &
-    !    return  ! bail out
-    !enddo
-    !! tsfc does not have vertical levels
-    !field = ESMF_FieldCreate(name=exportFieldList(5), mesh=mesh, &
-    !  meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, &
-    !  rc=rc)
-    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !  line=__LINE__, &
-    !  file=__FILE__)) &
-    !  return  ! bail out
-    !call NUOPC_Realize(exportState, field=field, rc=rc)
-    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !  line=__LINE__, &
-    !  file=__FILE__)) &
-    !  return  ! bail out
+    do i = 1, 6
+      if(nz1(i) .gt. 0) then
+        ! Fields with vertical dimension
+        field = ESMF_FieldCreate(name=exportFieldList(i), mesh=mesh, &
+          meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, &
+          ungriddedLBound=(/1/), ungriddedUBound=(/nz1(i)/), & 
+          rc=rc)
+      else
+        ! Fields without vertical dimension
+        field = ESMF_FieldCreate(name=exportFieldList(i), mesh=mesh, &
+          meshloc=ESMF_MESHLOC_ELEMENT, typekind=ESMF_TYPEKIND_R8, &
+          rc=rc)
+      endif
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+      call NUOPC_Realize(exportState, field=field, rc=rc)
+      if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+        line=__LINE__, &
+        file=__FILE__)) &
+        return  ! bail out
+    enddo
 
   end subroutine
 

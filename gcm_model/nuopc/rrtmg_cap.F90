@@ -389,11 +389,11 @@ module rrtmg_cap
       file=__FILE__)) &
       return  ! bail out
 
-    !call AdvertiseFields(importState, numFieldsToRRTMG, RRTMGImportFieldList, rc)
-    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !  line=__LINE__, &
-    !  file=__FILE__)) &
-    !  return  ! bail out
+    call AdvertiseFields(importState, numFieldsToRRTMG, RRTMGImportFieldList, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
     call AdvertiseFields(exportState, numFieldsFromRRTMG, RRTMGExportFieldList, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -1177,11 +1177,11 @@ module rrtmg_cap
     call ESMF_LogWrite(msg, ESMF_LOGMSG_INFO)
 
     ! Accept the ATM Mesh
-    !Mesh=AcceptMesh(importState, rc)
-    !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-    !  line=__LINE__, &
-    !  file=__FILE__)) &
-    !  return  ! bail out
+    Mesh=AcceptMeshImport(importState, rc)
+    if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+      line=__LINE__, &
+      file=__FILE__)) &
+      return  ! bail out
     Mesh=AcceptMesh(exportState, rc)
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
       line=__LINE__, &
@@ -1257,111 +1257,35 @@ module rrtmg_cap
 
     contains 
   
-      subroutine AcceptGrid(State, rc)
+      !-----------------------------------------------------------------------------
+      function AcceptMeshImport(State, rc)
+
+      type(ESMF_Mesh)      :: AcceptMeshImport
 
       type(ESMF_State)     :: State
       integer, intent(out) :: rc
       
       ! local variables
       type(ESMF_Field)              :: field
-      type(ESMF_Grid)               :: grid
-      integer                       :: localDeCount
+      type(ESMF_Mesh)               :: mesh
       character(80)                 :: name
       character(160)                :: msgString
 
-      type(ESMF_DistGrid)           :: distgrid
-      integer                       :: dimCount, tileCount, arbDimCount
-      integer, allocatable          :: minIndexPTile(:,:), maxIndexPTile(:,:)
-      integer                       :: connectionCount
-      type(ESMF_DistGridConnection), allocatable :: connectionList(:)
-      logical                       :: regDecompFlag
-
-      ! local variables    
-      character(ESMF_MAXSTR)                 :: transferAction
-      integer                                :: i, icount
-      character(64), allocatable             :: itemNameList(:)
-      type(ESMF_StateItem_Flag), allocatable :: typeList(:)
-
-      call ESMF_StateGet(state, itemCount=icount, rc=rc)
+      ! The import Field Layer pressures must have its mesh object defined to proceed
+      call ESMF_LogWrite("Accept Mesh Import Initiated", ESMF_LOGMSG_INFO)
+      call ESMF_StateGet(state, itemName="Layer pressures", field=field, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
         return  ! bail out
-      allocate(typeList(icount), itemNameList(icount))
-      call ESMF_StateGet(state, itemTypeList=typeList, itemNameList=itemNameList, rc=rc)
+      call ESMF_FieldGet(field, mesh=mesh, rc=rc)
       if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
         line=__LINE__, &
         file=__FILE__)) &
         return  ! bail out
+      AcceptMeshImport=mesh
 
-      do i = 1, icount
-        if(typeList(i) == ESMF_STATEITEM_FIELD) then
-          call ESMF_LogWrite("Accept Grid Initiated: "//trim(itemNameList(i)), ESMF_LOGMSG_INFO)
-      
-        ! access the field in the State
-        call ESMF_StateGet(State, field=field, itemName=itemNameList(i), rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-        ! construct a local Grid according to the transferred grid
-        call ESMF_FieldGet(field, grid=grid, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-        call ESMF_GridGet(grid, distgrid=distgrid, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-        call ESMF_DistGridGet(distgrid, dimCount=dimCount, tileCount=tileCount, &
-          connectionCount=connectionCount, regDecompFlag=regDecompFlag, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-        allocate(minIndexPTile(dimCount, tileCount), &
-          maxIndexPTile(dimCount, tileCount))
-        allocate(connectionList(connectionCount))
-        call ESMF_DistGridGet(distgrid, minIndexPTile=minIndexPTile, &
-          maxIndexPTile=maxIndexPTile, connectionList=connectionList, rc=rc)
-        if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-          line=__LINE__, &
-          file=__FILE__)) &
-          return  ! bail out
-        if (regDecompFlag) then
-          ! The provider used a regDecomp scheme for DistGrid creation:
-          ! This means that the entire index space is covered (no holes), and
-          ! it the easieast is just to use a regDecomp scheme on the acceptor
-          ! side as well.
-          distgrid = ESMF_DistGridCreate(minIndexPTile=minIndexPTile, &
-            maxIndexPTile=maxIndexPTile, connectionList=connectionList, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-          grid = ESMF_GridCreate(distgrid, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-          ! swap out the transferred grid for the newly created one
-          call ESMF_FieldEmptySet(field, grid=grid, rc=rc)    
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
-          call ESMF_LogWrite("RRTMG - Just set Grid for Field"//trim(itemNameList(i)), &
-            ESMF_LOGMSG_INFO, rc=rc)
-        endif
-        deallocate(minIndexPTile, maxIndexPTile, connectionList)
-      endif
-
-      enddo
-      deallocate(typeList, itemNameList)
-
-      end subroutine
+      end function
       !-----------------------------------------------------------------------------
       function AcceptMesh(State, rc)
 
@@ -1407,17 +1331,12 @@ module rrtmg_cap
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
-          ! construct a local Mesh according to the transferred grid
           call ESMF_FieldGet(field, mesh=mesh, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
             return  ! bail out
-          call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
-          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
-            line=__LINE__, &
-            file=__FILE__)) &
-            return  ! bail out
+          ! construct a local Mesh according to the transferred grid
           !call ESMF_MeshGet(mesh, nodalDistGrid=ndg, elementDistGrid=edg, numOwnedElements=noe, rc=rc)
           !if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
           !  line=__LINE__, &
@@ -1546,6 +1465,11 @@ module rrtmg_cap
           ! the transferred Mesh is already set, allocate memory for data by complete
           print *, ubound(fieldList(i)%farrayPtr2D, 1), ubound(fieldList(i)%farrayPtr2D, 2)
           call ESMF_FieldGet(field, mesh=mesh, rc=rc)
+          if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
+            line=__LINE__, &
+            file=__FILE__)) &
+            return  ! bail out
+          call ESMF_FieldEmptySet(field, mesh=mesh, meshloc=ESMF_MESHLOC_ELEMENT, rc=rc)
           if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, &
             line=__LINE__, &
             file=__FILE__)) &
